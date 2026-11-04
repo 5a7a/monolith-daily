@@ -1,0 +1,9 @@
+# install CPU torch first:  pip install torch --index-url https://download.pytorch.org/whl/cpu
+pocket-tts
+kokoro-onnx
+faster-whisper
+pillow
+numpy
+scipy
+soundfile
+matplotlib

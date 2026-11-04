@@ -1,0 +1,396 @@
+{
+ "stories": [
+  {
+   "article_id": "strike on ukraine humanitarian hub is feared to be among wars deadliest-1793721396000",
+   "question": "What happened in Ukraine?",
+   "answer": "A Russian strike hit a humanitarian hub in the Zaporizhzhia region, according to The New York Times. At least thirty-one people were killed. Hours later, the US said peace talks will resume.",
+   "place": "ZAPORIZHZHIA, UKRAINE",
+   "lat": 47.84,
+   "lon": 35.14,
+   "chips": [
+    [
+     "31 KILLED",
+     "thirty-one"
+    ],
+    [
+     "TALKS RESUME",
+     "talks"
+    ]
+   ],
+   "rundown": "UKRAINE  ·  STRIKE ON AID HUB",
+   "keys": [
+    "thirty-one"
+   ]
+  },
+  {
+   "article_id": "trump says us will stop providing aid to israel after yearend-1793718591000",
+   "question": "And in Israel?",
+   "answer": "President Trump says US aid to Israel will stop after the end of the year. He accused Democrats of using that aid as a talking point.",
+   "place": "JERUSALEM, ISRAEL",
+   "lat": 31.77,
+   "lon": 35.21,
+   "chips": [
+    [
+     "AID ENDS AT YEAR-END",
+     "aid"
+    ],
+    [
+     "BLAMES DEMOCRATS",
+     "Democrats"
+    ]
+   ],
+   "rundown": "ISRAEL  ·  US AID TO END",
+   "keys": [
+    "aid"
+   ]
+  },
+  {
+   "article_id": "south korea and turkey sign financing pact as seoul seeks role in planned nuclear power pl-1793719281000",
+   "question": "What about Türkiye?",
+   "answer": "Türkiye and South Korea are expanding nuclear and defence ties. Their latest deal explores funding for nuclear projects, as Ankara weighs partners for its planned Sinop plant.",
+   "place": "SINOP, TÜRKIYE",
+   "lat": 42.03,
+   "lon": 35.15,
+   "chips": [
+    [
+     "NUCLEAR FINANCING",
+     "funding"
+    ],
+    [
+     "SINOP PLANT",
+     "Sinop"
+    ]
+   ],
+   "rundown": "TÜRKIYE  ·  NUCLEAR DEAL WITH SEOUL",
+   "keys": [
+    "Sinop"
+   ]
+  },
+  {
+   "article_id": "the nuclear waste repository in finland designed to outlast modern civilisation-1793721600000",
+   "question": "And the story out of Finland?",
+   "answer": "Finland is about to switch on Onkalo, a nuclear waste store deep underground, built to last one hundred thousand years. New Scientist has the details.",
+   "place": "OLKILUOTO, FINLAND",
+   "lat": 61.24,
+   "lon": 21.44,
+   "chips": [
+    [
+     "100,000 YEARS",
+     "thousand"
+    ],
+    [
+     "DEEP UNDERGROUND",
+     "underground"
+    ]
+   ],
+   "rundown": "FINLAND  ·  100,000-YEAR NUCLEAR VAULT",
+   "keys": [
+    "thousand"
+   ]
+  }
+ ],
+ "caption": "Breaking news briefing: a deadly strike on a Ukraine aid hub, Trump on ending US aid to Israel, Türkiye and South Korea's nuclear deal, and Finland's 100,000-year nuclear vault.\nSend this to someone who needs to know.",
+ "hashtags": [
+  "breakingnews",
+  "worldnews",
+  "ukraine",
+  "turkiye",
+  "nuclear"
+ ],
+ "_articles": [
+  {
+   "id": "strike on ukraine humanitarian hub is feared to be among wars deadliest-1793721396000",
+   "source": "NYT International",
+   "trust": "A",
+   "title": "Strike on Ukraine Humanitarian Hub Is Feared to Be Among War’s Deadliest",
+   "body": "Hours after the Russian attack, which killed at least 31 and left dozens missing, the United States said that peace talks with the two countries would resume after nine months.",
+   "pubDate": "2026-11-03T15:56:36.000Z",
+   "topic": "🌍 World",
+   "countries": [
+    "Ukraine",
+    "United States",
+    "Russia"
+   ],
+   "url": "https://www.nytimes.com/2026/11/03/world/europe/komyshuvakha-zaporizhzhia-attack-ukraine.html",
+   "alertScore": 13
+  },
+  {
+   "id": "trump says us will stop providing aid to israel after yearend-1793718591000",
+   "source": "BBC Middle East",
+   "trust": "A",
+   "title": "Trump says US will stop providing aid to Israel after year-end",
+   "body": "The president accuses Democrats of weaponising US aid to Israel as a \"talking point\" with which to attack Republicans.",
+   "pubDate": "2026-11-03T15:09:51.000Z",
+   "topic": "🏛 Politics",
+   "countries": [
+    "Israel"
+   ],
+   "url": "https://www.bbc.co.uk/news/articles/cmx2dlx86n9yo?at_medium=RSS&at_campaign=rss",
+   "alertScore": 5
+  },
+  {
+   "id": "the nuclear waste repository in finland designed to outlast modern civilisation-1793721600000",
+   "source": "New Scientist",
+   "trust": "A-",
+   "title": "The nuclear waste repository in Finland designed to outlast modern civilisation",
+   "body": "The first engineered structure built to last for 100,000 years is about to begin operations. The hope is that Onkalo, deep below ground in Finland, will offer a safe place for the country to store nuclear waste",
+   "pubDate": "2026-11-03T16:00:00.000Z",
+   "topic": "🔬 Science",
+   "countries": [
+    "Finland"
+   ],
+   "url": "https://www.newscientist.com/article/2595321-the-nuclear-repository-in-finland-designed-to-outlast-modern-civilisation/?utm_campaign=RSS|NSNS&utm_content=home&utm_medium=RSS&utm_source=NSNS",
+   "alertScore": 3
+  },
+  {
+   "id": "south korea and turkey sign financing pact as seoul seeks role in planned nuclear power pl-1793719281000",
+   "source": "Euronews",
+   "trust": "A-",
+   "title": "South Korea and Turkey sign financing pact as Seoul seeks role in planned nuclear power plant",
+   "body": "Turkey and South Korea are expanding nuclear, defence and trade ties. Their latest agreement explores funding for nuclear projects, while Ankara weighs potential partners for its planned Sinop plant.",
+   "pubDate": "2026-11-03T15:21:21.000Z",
+   "topic": "🌍 World",
+   "countries": [
+    "South Korea",
+    "Turkey"
+   ],
+   "url": "https://www.euronews.com/2026/11/03/south-korea-and-turkey-sign-financing-pact-as-seoul-seeks-role-in-planned-nuclear-power-pl",
+   "alertScore": 3
+  },
+  {
+   "id": "french judges probe war crimes complaint against israeli army in lebanon lawyer-1793705054000",
+   "source": "Dawn Pakistan",
+   "trust": "A-",
+   "title": "French judges probe war crimes complaint against Israeli army in Lebanon: lawyer",
+   "body": "France has opened a judicial investigation into a war crimes complaint over an Israeli strike on a residential building in Lebanon, a lawyer told AFP on Tuesday.\nFrench-Lebanese artist Ali Cherri, whose parents were killed in the Beirut strike in 2024, filed the complaint as a civil party this year with the International Federation for Human Rights, Cherri’s lawyer Clemence Bectarte explained.\nThe",
+   "pubDate": "2026-11-03T11:24:14.000Z",
+   "topic": "🛡 Defence",
+   "countries": [
+    "Lebanon",
+    "Israel",
+    "France"
+   ],
+   "url": "https://www.dawn.com/news/2041847/french-judges-probe-war-crimes-complaint-against-israeli-army-in-lebanon-lawyer",
+   "alertScore": 28
+  },
+  {
+   "id": "more bombing a nuclear strike or a peace deal three scenarios for the war in iran after th-1793708675000",
+   "source": "The Independent",
+   "trust": "A-",
+   "title": "More bombing, a nuclear strike or a peace deal: Three scenarios for the war in Iran after the midterms",
+   "body": "Trump has threatened to resume bombing despite the failure of the US military to topple the regime",
+   "pubDate": "2026-11-03T12:24:35.000Z",
+   "topic": "🛡 Defence",
+   "countries": [
+    "Iran"
+   ],
+   "url": "https://www.independent.co.uk/news/world/middle-east/iran-trump-war-nuclear-strikes-midterms-b3078104.html",
+   "alertScore": 14
+  },
+  {
+   "id": "soldier martyred 17 terrorists killed in intelligencebased operations in balochistan ispr-1793718626000",
+   "source": "Dawn Pakistan",
+   "trust": "A-",
+   "title": "Soldier martyred, 17 terrorists killed in intelligence-based operations in Balochistan: ISPR",
+   "body": "A soldier was martyred and 17 terrorists were killed in two intelligence-based operations (IBOs) in Balochistan’s Kachhi and Kharan districts, the military’s media affairs wing said on Tuesday.\nAccording to a statement by Inter-Services Public Relations (ISPR), security forces conducted the IBOs on Nov 1 on the “reported presence of terrorists belonging to Indian proxy Fitna al Hindustan”.\nThe sta",
+   "pubDate": "2026-11-03T15:10:26.000Z",
+   "topic": "🛡 Defence",
+   "countries": [
+    "India",
+    "Pakistan"
+   ],
+   "url": "https://www.dawn.com/news/2041875/soldier-martyred-17-terrorists-killed-in-intelligence-based-operations-in-balochistan-ispr",
+   "alertScore": 12
+  },
+  {
+   "id": "trump on israel the aid gets cut off at yearend-1793713600000",
+   "source": "ForexLive",
+   "trust": "A-",
+   "title": "Trump on Israel: The aid gets cut off at year-end",
+   "body": "Trump spoke on Fox News and Israel came up. The comments appear to be putting some downward pressure on oil, with the sense that there are some lines being drawn between the US and Israel. The market is extending that to the idea that the US will make a deal with Iran. I'm skeptical that's what Trump is really implying here but the price action in oil this week is dramatic.Aid gets cut off at year",
+   "pubDate": "2026-11-03T13:46:40.000Z",
+   "topic": "💱 Forex",
+   "countries": [
+    "Israel",
+    "United States",
+    "Iran"
+   ],
+   "url": "https://investinglive.com/news/trump-on-israel-the-aid-gets-cut-off-at-year-end/",
+   "alertScore": 12
+  },
+  {
+   "id": "ihc suspends order rejecting fir plea in pims fire case seeks inquiry report and govt resp-1793703901000",
+   "source": "Dawn Pakistan",
+   "trust": "A-",
+   "title": "IHC suspends order rejecting FIR plea in Pims fire case, seeks inquiry report and govt response",
+   "body": "ISLAMABAD: The Islamabad High Court (IHC) on Tuesday suspended a Justice of the Peace’s order dismissing an application seeking the registration of an FIR into the Pakistan Institute of Medical Sciences (Pims) neonatal fire tragedy.\nThe court also directed the authorities to submit the complete record, along with the inquiry report, and issued notices to the respondents, including the federal gove",
+   "pubDate": "2026-11-03T11:05:01.000Z",
+   "topic": "₿ Crypto",
+   "countries": [
+    "Pakistan"
+   ],
+   "url": "https://www.dawn.com/news/2041835/ihc-suspends-order-rejecting-fir-plea-in-pims-fire-case-seeks-inquiry-report-and-govt-response",
+   "alertScore": 12
+  },
+  {
+   "id": "zelensky musk in contact with putin since wars start-1793712341000",
+   "source": "Kyiv Post",
+   "trust": "A-",
+   "title": "Zelensky: Musk in Contact With Putin Since War’s Start",
+   "body": "President Volodymyr Zelensky said Elon Musk had communicated with both him and Russian President Vladimir Putin at the beginning of Russia’s full-scale invasion. He did not specify when the contacts took place or what they concerned. His remarks came amid renewed scrutiny of Musk’s role in Ukraine’s access to Starlink and Starshield, following service restrictions that disrupted some Ukrainian mil",
+   "pubDate": "2026-11-03T13:25:41.000Z",
+   "topic": "🛡 Defence",
+   "countries": [
+    "Russia",
+    "Ukraine"
+   ],
+   "url": "https://www.kyivpost.com/post/89012",
+   "alertScore": 10
+  },
+  {
+   "id": "what were watching on election night for energy-1793713103000",
+   "source": "Axios",
+   "trust": "A-",
+   "title": "What we're watching on election night for energy",
+   "body": "There's a lot at stake for energy in the midterms, from the fate of the bipartisan permitting deal to the growing backlash against data centers and electricity prices.Why it matters: The results could spotlight which energy topics resonate with voters — and which have become political liabilities.Gasoline and diesel prices have been big on the campaign trail, offering a chance to see how much vote",
+   "pubDate": "2026-11-03T13:38:23.000Z",
+   "topic": "🏛 Politics",
+   "countries": [
+    "United States",
+    "France"
+   ],
+   "url": "https://www.axios.com/2026/11/03/election-night-midterms-energy",
+   "alertScore": 9
+  },
+  {
+   "id": "major hedge funds mostly lose in nowhere to hide october-1793706008000",
+   "source": "Bloomberg",
+   "trust": "A",
+   "title": "Major Hedge Funds Mostly Lose in ‘Nowhere to Hide’ October",
+   "body": "Many of the world’s biggest hedge funds extended their losses last month, as a sell off in technology stocks, a government bond meltdown and Brazil’s shock election combined to deliver widespread volatility and one of the broadest declines since the coronavirus pandemic.",
+   "pubDate": "2026-11-03T11:40:08.000Z",
+   "topic": "📈 Markets",
+   "countries": [
+    "Brazil"
+   ],
+   "url": "https://www.bloomberg.com/news/articles/2026-11-03/major-hedge-funds-mostly-lose-in-nowhere-to-hide-october",
+   "alertScore": 7
+  },
+  {
+   "id": "binance battles to save its brand after record 63bn crypto hack-1793717130000",
+   "source": "The Guardian Tech",
+   "trust": "A-",
+   "title": "Binance battles to save its brand after record $6.3bn crypto hack",
+   "body": "World’s largest crypto exchange faces fallout from angry customers, and Lula wins with WhatsAppThis was originally published in TechScape, a newsletter about how technology shapes our lives. Sign up to receive it hereThis week in tech, we’re discussing the fallout from the multibillion-dollar hack of Binance and the significance of Lula’s political mobilization on WhatsApp.And if you’ll be at Web ",
+   "pubDate": "2026-11-03T14:45:30.000Z",
+   "topic": "💻 Tech",
+   "countries": [
+    "Portugal",
+    "North Korea"
+   ],
+   "url": "https://www.theguardian.com/technology/2026/nov/02/binance-cryptocurrency-exchange-hack",
+   "alertScore": 6
+  },
+  {
+   "id": "major queensland hospital to close pathology labs amid potential formaldehyde exposure inv-1793693468000",
+   "source": "The Guardian",
+   "trust": "A-",
+   "title": "Major Queensland hospital to close pathology labs amid potential formaldehyde exposure investigation",
+   "body": "About 400 staff affected by closure at both Mater’s Brisbane and Springfield hospitals, with financial sustainability of pathology business a factorGet our breaking news email, free app or daily news podcastIn-house pathology services at one of Queensland’s biggest hospitals will permanently close amid an investigation into potential formaldehyde exposure and continual financial strain.The closure",
+   "pubDate": "2026-11-03T08:11:08.000Z",
+   "topic": "🏥 Health",
+   "countries": [
+    "Australia"
+   ],
+   "url": "https://www.theguardian.com/australia-news/2026/nov/03/major-queensland-hospital-to-close-pathology-labs-amid-potential-formaldehyde-exposure-investigation",
+   "alertScore": 6
+  },
+  {
+   "id": "eu to hold security talks ahead of russia meeting-1793720100000",
+   "source": "Kyiv Post",
+   "trust": "A-",
+   "title": "EU to Hold Security Talks Ahead of Russia Meeting",
+   "body": "The European Commission will host talks on Ukraine in Brussels on Nov. 4, ahead of US-mediated negotiations with Russia in Abu Dhabi on Nov. 10-11. Ukrainian, American, European, NATO, and World Bank representatives will attend. The discussions form part of a diplomatic push on security guarantees and reconstruction, with Kyiv seeking binding commitments to prevent another Russian invasion.",
+   "pubDate": "2026-11-03T15:35:00.000Z",
+   "topic": "🛡 Defence",
+   "countries": [
+    "Russia",
+    "Ukraine",
+    "United Arab Emirates"
+   ],
+   "url": "https://www.kyivpost.com/post/89028",
+   "alertScore": 5
+  },
+  {
+   "id": "beijing offers to boost chinapakistan corridor safety as terror threat grows-1793703614000",
+   "source": "South China Post",
+   "trust": "A-",
+   "title": "Beijing offers to boost China-Pakistan corridor safety as terror threat grows",
+   "body": "China has pledged to work with Pakistan to advance “high-level security cooperation” and ensure the safety of a joint flagship infrastructure project that has become a target for terrorists.\nThat was the message Liu Haixing, head of the Communist Party’s International Department, conveyed in talks with Pakistan defence forces chief Asim Munir and Prime Minister Shehbaz Sharif on Monday, as part of",
+   "pubDate": "2026-11-03T11:00:14.000Z",
+   "topic": "🏗 Infrastructure",
+   "countries": [
+    "China",
+    "Pakistan"
+   ],
+   "url": "https://www.scmp.com/news/china/diplomacy/article/3373147/beijing-offers-boost-china-pakistan-corridor-safety-terror-threat-grows",
+   "alertScore": 5
+  },
+  {
+   "id": "four charged with attempted murder after south african farmer shot and tortured-1793707979000",
+   "source": "BBC Africa",
+   "trust": "A",
+   "title": "Four charged with attempted murder after South African farmer shot and tortured",
+   "body": "The attack on Donovan Marx, 50, comes as right-wing groups say there is a genocide of white people - a claim widely discredited.",
+   "pubDate": "2026-11-03T12:12:59.000Z",
+   "topic": "🌍 World",
+   "countries": [
+    "South Africa"
+   ],
+   "url": "https://www.bbc.co.uk/news/articles/cv4g13z0px8yo?at_medium=RSS&at_campaign=rss",
+   "alertScore": 4
+  },
+  {
+   "id": "winsen an der luhe teenager mit benzinkanister gestoppt-1793715240000",
+   "source": "Der Spiegel",
+   "trust": "B+",
+   "title": "Winsen an der Luhe: Teenager mit Benzinkanister gestoppt",
+   "body": "Mitglieder der rechtsextremen Chatgruppe »Terror 18« sollen sich zu einem Anschlag auf eine Flüchtlingsunterkunft in Winsen an der Luhe verabredet haben. Laufende Ermittlungen hielten einen 15-Jährigen nicht ab.",
+   "pubDate": "2026-11-03T14:14:00.000Z",
+   "topic": "₿ Crypto",
+   "countries": [
+    "Germany"
+   ],
+   "url": "https://www.spiegel.de/panorama/justiz/winsen-an-der-luhe-teenager-mit-benzinkanister-gestoppt-a-3bdf1376-6c92-42e3-a61e-a1b0d8523aa9#ref=rss",
+   "alertScore": 3
+  },
+  {
+   "id": "south korea türkiye agree to deepen nuclear energy defence ties-1793705150000",
+   "source": "Channel News Asia",
+   "trust": "A-",
+   "title": "South Korea, Türkiye agree to deepen nuclear energy, defence ties",
+   "body": "Both countries had agreed to \"deepen defence cooperation by expanding joint production and technological cooperation\".",
+   "pubDate": "2026-11-03T11:25:50.000Z",
+   "topic": "🌍 World",
+   "countries": [
+    "South Korea"
+   ],
+   "url": "https://www.channelnewsasia.com/east-asia/south-korea-turkiye-nuclear-energy-defence-ties-6516676",
+   "alertScore": 3
+  },
+  {
+   "id": "renfe updates safety protocol as investigators analyse urda collision-1793702643000",
+   "source": "Railway Gazette",
+   "trust": "A-",
+   "title": "Renfe updates safety protocol as investigators analyse Urda collision",
+   "body": "SPAIN: Renfe has introduced a new safety directive for high speed operations, requiring trains to halt and proceed at a maximum speed of 40 km/h under visual supervision after cab signalling failures. The decision follows the fatal Urda collision that killed at least 69 people. Most Spanish high speed lines are equipped with cab signalling,…",
+   "pubDate": "2026-11-03T10:44:03.000Z",
+   "topic": "🏗 Infrastructure",
+   "countries": [
+    "Spain"
+   ],
+   "url": "https://www.railwaygazette.com/spain/2026/11/03/renfe-updates-safety-protocol-as-investigators-analyse-urda-collision/",
+   "alertScore": 3
+  }
+ ]
+}

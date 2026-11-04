@@ -1,0 +1,20 @@
+name: publish
+on:
+  repository_dispatch: { types: [publish] }   # fired by the Telegram "Publish" button (client_payload.run_id)
+permissions: { actions: read, contents: read }
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: episode, path: out, run-id: '${{ github.event.client_payload.run_id }}', github-token: '${{ secrets.GITHUB_TOKEN }}' }
+      - name: Post the Reel
+        env: { IG_TOKEN: '${{ secrets.IG_TOKEN }}', IG_USER_ID: '${{ secrets.IG_USER_ID }}' }
+        run: python pipeline/instagram.py out
+      - name: Confirm
+        if: always()
+        env: { TG_BOT_TOKEN: '${{ secrets.TG_BOT_TOKEN }}', TG_CHAT_ID: '${{ secrets.TG_CHAT_ID }}' }
+        run: |
+          python pipeline/telegram.py say "${{ job.status == 'success' && 'Posted ✅' || 'Posting failed ❌ check the publish run in GitHub Actions' }} $(cat out/published.txt 2>/dev/null)"

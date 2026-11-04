@@ -1,0 +1,4 @@
+{
+  "M": {"engine": "pocket", "voice": "michael"},
+  "F": {"engine": "kokoro", "voice": "af_heart", "speed": 1.05}
+}
