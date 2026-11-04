@@ -7,6 +7,11 @@ P = lambda *a: os.path.join(ROOT, *a)
 CFG = json.load(open(P('pipeline', 'voices.json')))
 PRON = {k: v for k, v in json.load(open(P('pipeline', 'pronunciations.json'))).items() if not k.startswith('_')}
 SAY = {'Türkiye': 'Turkey', 'Zelenskyy': 'Zelensky', '%': ' percent', '&': ' and '}   # plain-text fixes for engines without phoneme input
+_LS = P('pipeline', 'learned_say.json')
+LEARNED = json.load(open(_LS)) if os.path.exists(_LS) else {}   # words the AI check taught us: word -> how to say it (both voices)
+def learned(text):
+    for w, say in LEARNED.items(): text = re.sub(r'\b' + re.escape(w) + r'\b', say, text)
+    return text
 def clean(t):
     t = re.sub(r'\[[^\]]*\]', '', t)            # sound tags: neither engine performs them
     return re.sub(r'\s+', ' ', t).strip()
@@ -39,5 +44,5 @@ def synth(lines, outdir, only=None, seed=7):
     for i, (who, txt, _) in enumerate(lines):
         f = os.path.join(outdir, f'line_{i:02d}.wav'); files.append(f)
         if only is not None and i not in only: continue
-        c = CFG[who]; a, sr = engine(c['engine'])(clean(txt), c, seed + i); sf.write(f, a, sr)
+        c = CFG[who]; a, sr = engine(c['engine'])(learned(clean(txt)), c, seed + i); sf.write(f, a, sr)
     return files

@@ -1,6 +1,6 @@
 # One briefing, end to end: feed -> 4 stories (free LLM + fact check) -> voices -> captions -> photos ->
 # approved Evening Briefing render -> music + SFX mix -> Instagram-ready mp4.
-# Usage: python pipeline/run.py OUTDIR [--script script.json]
+# Usage: python pipeline/run.py OUTDIR [--script script.json] [--fixes fixes.json]
 import os, sys, re, json, time, subprocess, datetime as dt
 from concurrent.futures import ThreadPoolExecutor
 HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(HERE); sys.path.insert(0, HERE)
@@ -15,6 +15,8 @@ else:
     import writer
     S = writer.write(cands)
 byid = {a['id']: a for a in cands}
+FX = json.load(open(sys.argv[sys.argv.index('--fixes') + 1])) if '--fixes' in sys.argv else {}
+S['_articles'] = [byid[s['article_id']] for s in S['stories']]   # keep the article texts with the script (re-runs, fixes)
 json.dump(S, open(os.path.join(out, 'script.json'), 'w'), ensure_ascii=False, indent=1); log('script ok')
 json.dump([{k: byid[s['article_id']].get(k) for k in ('id', 'source', 'title', 'body', 'url')} for s in S['stories']], open(os.path.join(out, 'articles.json'), 'w'), ensure_ascii=False)
 
@@ -31,10 +33,17 @@ json.dump([{'speaker': 'male host' if w == 'M' else 'female anchor', 'text': t} 
 
 # ---- voices + timings
 import voices, timing
-if '--reuse' in sys.argv and all(os.path.exists(os.path.join(out, f'line_{i:02d}.wav')) for i in range(len(lines))):
-    files = [os.path.join(out, f'line_{i:02d}.wav') for i in range(len(lines))]
-else: files = voices.synth(lines, out)
-log('voices ok')
+import hashlib
+hp = os.path.join(out, 'line_hash.json'); old = json.load(open(hp)) if os.path.exists(hp) else {}
+voices.LEARNED.update(FX.get('say', {}))
+key = lambda i: hashlib.md5((lines[i][0] + voices.learned(voices.clean(lines[i][1]))).encode()).hexdigest()   # changes only if what's spoken changes
+todo = [i for i in range(len(lines)) if old.get(str(i)) != key(i) or not os.path.exists(os.path.join(out, f'line_{i:02d}.wav'))]
+redo = [i for i in FX.get('revoice', []) if i not in todo]
+if todo: voices.synth(lines, out, only=todo)
+if redo: voices.synth(lines, out, only=redo, seed=100 * FX.get('round', 1))     # fresh take for lines the AI check flagged
+files = [os.path.join(out, f'line_{i:02d}.wav') for i in range(len(lines))]
+json.dump({str(i): key(i) for i in range(len(lines))}, open(hp, 'w'))
+log('voices ok', f'({len(todo) + len(redo)} recorded)')
 W, bad = timing.words(files, lines)
 for retry in range(2):
     if not bad: break
@@ -63,13 +72,18 @@ def related(a):
     for b in cands:
         if b['id'] != a['id'] and b['source'] != a['source'] and len(me & sig(b['title'])) >= 3 and b['source'] not in outl: outl.append(b['source'])
     return outl
-stories, keys = [], []
+stories, keys, photo_src = [], [], {}
 for i, st in enumerate(S['stories']):
     a = byid[st['article_id']]; rel = related(a)
-    dst = os.path.join(out, f'photo_{i}.jpg'); ai = False
-    img = photos.fetch([a['url']] + [b['url'] for b in cands if b['source'] in rel], dst)          # 1. the outlet, 2. feed outlets on the same story
-    if not img: img = photos.fetch(photos.search_other_outlets(a['title']), dst)                     # 3. any other outlet's cover photo
-    if not img: img = photos.illustrate(st.get('image_prompt') or a['title'], dst); ai = bool(img)  # 4. AI illustration (labelled)
+    dst = os.path.join(out, f'photo_{i}.jpg'); ai = False; skip = set(FX.get('skip_urls', {}).get(str(i), []))
+    prev = json.load(open(os.path.join(out, 'photo_src.json'))).get(str(i)) if os.path.exists(os.path.join(out, 'photo_src.json')) else None
+    if prev and prev['src'] not in skip and os.path.exists(dst): img, src, ai = dst, prev['src'], prev['ai']   # keep a photo that passed
+    else:
+        img, src = photos.fetch([a['url']] + [b['url'] for b in cands if b['source'] in rel], dst, skip)        # 1. the outlet, 2. feed outlets on the same story
+        if not img: img, src = photos.fetch(photos.search_other_outlets(a['title']), dst, skip)                 # 3. any other outlet's cover photo
+        if not img and 'AI' not in skip:                                                                        # 4. AI illustration (labelled)
+            img = photos.illustrate(st.get('image_prompt') or a['title'], dst); src = 'AI' if img else None; ai = bool(img)
+    photo_src[str(i)] = {'src': src, 'ai': ai}
     topic = re.sub(r'[^A-Za-z ]', '', a.get('topic') or 'WORLD').strip().upper() or 'WORLD'
     stories.append({'img': img, 'outlet': a['source'].upper()[:22], 'grade': a['trust'], 'topic': topic,
                     'pub': dt.datetime.fromisoformat(a['pubDate'].replace('Z', '+00:00')).strftime('%H:%M UTC'),
@@ -77,6 +91,7 @@ for i, st in enumerate(S['stories']):
                     'loc': [float(st['lat']), float(st['lon'])], 'place': st['place'].upper(), 'chips': st['chips'][:3], 'rundown': st['rundown'].upper(),
                     'url': a['url'], 'ai_image': ai})
     keys += st.get('keys', []) + [re.sub(r'[^0-9]', '', c[0]) for c in st['chips'] if re.search(r'\d', c[0])]
+json.dump(photo_src, open(os.path.join(out, 'photo_src.json'), 'w'))
 log('photos', sum(1 for s in stories if s['img']), 'of', len(stories))
 E = {'slot': slot, 'date_long': now.strftime('%a %-d %b %Y').upper(), 'date_short': now.strftime('%-d %b %Y').upper(),
      'stories': stories, 'keys': [k for k in keys if k], 'words': words}
@@ -102,7 +117,7 @@ for t0, f, who in place:
 w = int(0.06 * SR); env_ = np.sqrt(np.convolve(voice ** 2, np.ones(w) / w, 'same')); env_ = np.clip(np.convolve(env_, np.ones(int(0.25 * SR)) / int(0.25 * SR), 'same') / 0.07, 0, 1)
 m = load(os.path.join(ROOT, 'assets', 'music.mp3')); off = int(8 * SR); bed = np.resize(m[off:], N).copy()
 fi = int(0.5 * SR); bed[:fi] *= np.linspace(0, 1, fi); bed[-fi:] *= np.linspace(1, 0, fi)
-bed *= (10 ** (-30 / 20)) / (np.sqrt((bed ** 2).mean()) + 1e-9); bed *= (1 - 0.55 * env_)
+bed *= (10 ** ((-30 + FX.get('music_db', 0)) / 20)) / (np.sqrt((bed ** 2).mean()) + 1e-9); bed *= (1 - 0.55 * env_)
 sfx = np.zeros(N, np.float32)
 def put(name, t, g=1.0):
     x = load(os.path.join(ROOT, 'assets', 'sfx', name + '.mp3')); i = int(t * SR)

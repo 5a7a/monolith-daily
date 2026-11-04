@@ -47,7 +47,16 @@ said and shown. Report only real mistakes a viewer would notice:
 - FACTS: anything on screen or spoken that contradicts the script or the article facts given below.
 Ignore matters of taste (style, voice choice, music choice). Minor = noticeable but harmless; major = misleading,
 embarrassing, or clearly broken. ok must be false if there is ANY major problem.
-Return JSON only: {"ok": true|false, "problems": [{"time": "m:ss", "type": "audio|visual|facts", "severity": "minor|major", "detail": "..."}]}
+For EVERY problem also give the fix, using exactly one of these actions (line = index in spoken_lines, story = index in stories):
+  {"action": "pronounce", "word": "<word as written>", "say_as": "<respelling a text-to-speech voice reads right, e.g. AHN-kuh-ruh>"}
+  {"action": "revoice", "line": N}                         (garbled, skipped or cut-off words in that line)
+  {"action": "rewrite", "line": N, "text": "<corrected line, numbers as words, facts only from article_facts>"}
+  {"action": "replace_photo", "story": N}                   (photo wrong, broken, unrelated or graphic)
+  {"action": "fix_text", "story": N, "field": "chip|place|rundown", "old": "<text on screen>", "new": "<corrected>"}
+  {"action": "move_pin", "story": N, "lat": 0.0, "lon": 0.0}
+  {"action": "music_quieter"}
+  {"action": "none"}                                         (cannot be fixed by any action above)
+Return JSON only: {"ok": true|false, "problems": [{"time": "m:ss", "type": "audio|visual|facts", "severity": "minor|major", "detail": "...", "fix": {...}}]}
 
 EXPECTED CONTENT:
 """
@@ -57,10 +66,11 @@ if __name__ == '__main__':
     try:
         if not KEY: raise RuntimeError('GEMINI_API_KEY missing')
         script = json.load(open(os.path.join(out, 'script.json'))); ep = json.load(open(os.path.join(out, 'episode.json')))
-        expect = {'spoken_lines': [L for L in json.load(open(os.path.join(out, 'lines.json')))],
+        expect = {'spoken_lines': [dict(index=i, **L) for i, L in enumerate(json.load(open(os.path.join(out, 'lines.json'))))],
                   'stories': [{'outlet': s['outlet'], 'grade': s['grade'], 'headline': s['headline'], 'chips': [c[0] for c in s['chips']],
                                'place': s['place'], 'pin_lat_lon': s['loc'], 'has_photo': bool(s.get('img')), 'ai_illustration': s.get('ai_image', False)}
                               for s in ep['stories']],
+                  'story_index_note': 'stories[0] is story 1 on screen',
                   'article_facts': [{'outlet': s['outlet'], 'text': a.get('title', '') + '. ' + a.get('body', '')} for s, a in
                                     zip(ep['stories'], json.load(open(os.path.join(out, 'articles.json'))))]}
         f = upload(os.path.join(out, 'episode.mp4'))

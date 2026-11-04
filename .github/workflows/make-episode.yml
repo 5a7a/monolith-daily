@@ -3,6 +3,7 @@ on:
   repository_dispatch: { types: [make-episode] }   # fired by the Cloudflare Worker on schedule, or by the Redo button
   workflow_dispatch: {}
 concurrency: { group: episode, cancel-in-progress: false }
+permissions: { contents: write }
 jobs:
   make:
     runs-on: ubuntu-latest
@@ -31,9 +32,27 @@ jobs:
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           CF_AI_TOKEN: ${{ secrets.CF_AI_TOKEN }}
         run: python pipeline/run.py out
-      - name: AI check of the finished episode (Gemini watches + listens)
-        env: { GEMINI_API_KEY: '${{ secrets.GEMINI_API_KEY }}' }
-        run: python pipeline/review.py out
+      - name: AI check + automatic fixes (up to 2 rounds)
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          CF_AI_TOKEN: ${{ secrets.CF_AI_TOKEN }}
+        run: |
+          python pipeline/review.py out
+          for round in 1 2; do
+            python -c "import json,sys; sys.exit(0 if json.load(open('out/review.json'))['ok'] else 1)" && break
+            python pipeline/autofix.py out $round || break
+            python pipeline/run.py out --script out/script.json --fixes out/fixes.json
+            python pipeline/review.py out
+          done
+      - name: Remember new pronunciations
+        if: always()
+        run: |
+          if ! git diff --quiet pipeline/learned_say.json; then
+            git config user.name "monolith-bot"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add pipeline/learned_say.json && git commit -m "Learn pronunciations from the AI check" && git push
+          fi
       - uses: actions/upload-artifact@v4
         with: { name: episode, path: out/, retention-days: 3 }
       - name: Send to Telegram for approval

@@ -18,8 +18,12 @@ def verdict(out):
         head = f"✅ AI check passed. Auto-posts in {mins // 60}h{mins % 60:02d} if you don't answer."
     else:
         head = "⚠️ AI check found problems, so this will NOT auto-post. Tap Publish yourself if it's fine."
+    try: fixed = json.load(open(os.path.join(out, 'fixlog.json')))
+    except Exception: fixed = []
+    if fixed: head += f"\n🔧 Fixed automatically: {len(fixed)} problem{'s' if len(fixed) > 1 else ''}."
     lines = [f"• {p.get('time', '')} {p.get('type', '')} ({p.get('severity', '')}): {p.get('detail', '')}" for p in r.get('problems', [])]
-    return r, head, '\n'.join(lines)
+    notes = ('FIXED AUTOMATICALLY\n' + '\n'.join('• ' + x for x in fixed) + '\n\n' if fixed else '') + ('STILL FLAGGED\n' + '\n'.join(lines) if lines else '')
+    return r, head, notes.strip()
 
 if __name__ == '__main__':
     cmd = sys.argv[1]; chat = os.environ['TG_CHAT_ID']
@@ -29,7 +33,7 @@ if __name__ == '__main__':
         cap = head + '\n\n' + meta['caption']
         msg = api('sendVideo', {'chat_id': chat, 'caption': cap[:1020], 'supports_streaming': 'true', 'reply_markup': json.dumps(kb)},
                   {'video': os.path.join(out, 'preview.mp4')})['result']
-        extra = ('AI CHECK NOTES\n' + probs + '\n\n' if probs else '') + 'SOURCES\n' + meta['sources']
+        extra = (probs + '\n\n' if probs else '') + 'SOURCES\n' + meta['sources']
         api('sendMessage', {'chat_id': chat, 'text': extra[:4000], 'reply_to_message_id': msg['message_id']})
         url, secret = os.environ.get('WORKER_URL'), os.environ.get('PIPE_SECRET')
         if url and secret:   # register the episode with the Worker, which auto-posts it later if nobody answers
