@@ -2,7 +2,11 @@ name = "monolith-daily"
 main = "worker.js"
 compatibility_date = "2026-10-01"
 [triggers]
-crons = ["7 6 * * *", "7 12 * * *", "7 18 * * *"]   # UTC -> 09:07, 15:07, 21:07 Istanbul. Free plan allows 5 cron triggers.
+crons = ["7 6 * * *", "7 12 * * *", "7 18 * * *", "*/10 * * * *"]   # UTC: 09:07, 15:07, 21:07 Istanbul + the auto-post check
 [vars]
 GH_REPO = "5a7a/monolith-daily"
 TG_ADMIN_ID = "YOUR_TELEGRAM_USER_ID"
+AUTO_POST_MINUTES = "120"
+[[kv_namespaces]]
+binding = "STATE"
+id = "YOUR_KV_NAMESPACE_ID"

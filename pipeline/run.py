@@ -16,6 +16,7 @@ else:
     S = writer.write(cands)
 byid = {a['id']: a for a in cands}
 json.dump(S, open(os.path.join(out, 'script.json'), 'w'), ensure_ascii=False, indent=1); log('script ok')
+json.dump([{k: byid[s['article_id']].get(k) for k in ('id', 'source', 'title', 'body', 'url')} for s in S['stories']], open(os.path.join(out, 'articles.json'), 'w'), ensure_ascii=False)
 
 # ---- date / slot (Istanbul time) and the spoken intro
 now = dt.datetime.now(dt.timezone(dt.timedelta(hours=3)))
@@ -26,6 +27,7 @@ ORD = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eight
 intro = f"This is the Monolith {slot.lower()} briefing, {now:%A}, {now:%B} {ORD[now.day - 1]}."
 lines = [('M', intro, 'intro')]
 for i, st in enumerate(S['stories']): lines += [('M', st['question'], f'q{i}'), ('F', st['answer'], f'a{i}')]
+json.dump([{'speaker': 'male host' if w == 'M' else 'female anchor', 'text': t} for w, t, _ in lines], open(os.path.join(out, 'lines.json'), 'w'), ensure_ascii=False)
 
 # ---- voices + timings
 import voices, timing
