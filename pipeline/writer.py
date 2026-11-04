@@ -1,7 +1,7 @@
 # Script writing + fact check with free LLM APIs (OpenAI-compatible endpoints). Tries providers in order.
 import os, re, json, datetime as dt, urllib.request
 PROVIDERS = [  # (env key, base url, model env, default model)
-    ('GEMINI_API_KEY', 'https://generativelanguage.googleapis.com/v1beta/openai', 'GEMINI_MODEL', 'gemini-flash-latest'),
+    ('GEMINI_API_KEY', 'https://generativelanguage.googleapis.com/v1beta/openai', 'GEMINI_MODEL', 'gemini-3.8-flash'),
     ('GROQ_API_KEY', 'https://api.groq.com/openai/v1', 'GROQ_MODEL', 'llama-3.3-70b-versatile'),
     ('CEREBRAS_API_KEY', 'https://api.cerebras.ai/v1', 'CEREBRAS_MODEL', 'llama-3.3-70b'),
     ('OPENROUTER_API_KEY', 'https://openrouter.ai/api/v1', 'OPENROUTER_MODEL', 'meta-llama/llama-3.3-70b-instruct:free'),
