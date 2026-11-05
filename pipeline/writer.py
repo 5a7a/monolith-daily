@@ -23,12 +23,22 @@ def _available(base, key):
         return ids[0] if ids else None
     except Exception: return None
 
+def _gemini_extras(base, key, tried):   # other Gemini models: each has its own capacity when one is overloaded
+    try:
+        r = json.load(urllib.request.urlopen(urllib.request.Request(base + '/models', headers={'Authorization': 'Bearer ' + key, 'User-Agent': UA}), timeout=30))
+        ids = [m['id'].split('/')[-1] for m in r.get('data', [])]
+        ids = [i for i in ids if re.search(r'gemini.*(flash|pro)', i) and not re.search(r'tts|image|embed|live|audio|preview-tts|robotics', i) and i not in tried]
+        return sorted(ids, key=lambda i: [float(x) for x in re.findall(r'\d+(?:\.\d+)?', i)[:1]] or [0], reverse=True)[:4]
+    except Exception: return []
+
 def _call(base, key, model, messages, strict=True):
-    q = {'model': model, 'messages': messages, 'temperature': 0.5}
+    q = {'model': model, 'messages': messages, 'temperature': 0.5, 'max_tokens': 4096}
+    if 'gpt-oss' in model: q['reasoning_effort'] = 'low'   # less hidden thinking: fewer tokens, no empty replies
     if strict: q['response_format'] = {'type': 'json_object'}
     body = json.dumps(q).encode()
     req = urllib.request.Request(base + '/chat/completions', body, {'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json', 'User-Agent': UA})
-    r = json.load(urllib.request.urlopen(req, timeout=180)); txt = r['choices'][0]['message']['content']
+    r = json.load(urllib.request.urlopen(req, timeout=180)); txt = r['choices'][0]['message'].get('content') or ''
+    if '{' not in txt: raise ValueError('empty reply')
     return json.loads(txt[txt.find('{'): txt.rfind('}') + 1])
 
 def chat(messages, skip=None, passes=2):
@@ -38,8 +48,9 @@ def chat(messages, skip=None, passes=2):
         if p: time.sleep(60)
         for key, base, menv, mdef in PROVIDERS:
             if not os.environ.get(key) or key == skip: continue
-            models = [os.environ.get(menv, mdef)] + FALLBACK.get(key, []); tried = set()
-            while models:
+            models = [os.environ.get(menv, mdef)] + FALLBACK.get(key, []); tried = set(); extras = key != 'GEMINI_API_KEY'
+            while models or not extras:
+                if not models: extras = True; models = _gemini_extras(base, os.environ[key], tried); continue
                 model = models.pop(0)
                 if model in tried or not model: continue
                 tried.add(model); strict = True
@@ -48,7 +59,9 @@ def chat(messages, skip=None, passes=2):
                     except urllib.error.HTTPError as e:
                         detail = e.read().decode('utf-8', 'ignore')[:200].replace('\n', ' ')
                         err.append(f'{key} {model}: HTTP {e.code} {detail}')
-                        if e.code in (429, 500, 502, 503, 504): time.sleep(15 * (attempt + 1)); continue   # busy: wait and retry
+                        if e.code == 429:                                   # per-minute limit: wait it out
+                            m = re.search(r'try again in ([\d.]+)s', detail); time.sleep(min(65, float(m.group(1)) + 2) if m else 30 * (attempt + 1)); continue
+                        if e.code in (500, 502, 503, 504): time.sleep(15 * (attempt + 1)); continue   # busy: wait and retry
                         if e.code == 400 and 'json' in detail.lower(): strict = False; continue          # its JSON mode choked: ask plainly
                         if e.code in (400, 404) and 'model' in detail.lower() and not models:              # model retired: ask what exists
                             alt = _available(base, os.environ[key]); models += [alt] if alt and alt not in tried else []
@@ -91,9 +104,9 @@ doesn't contain the outlet's name. Numbers written as words are the same as digi
 {"ok": true|false, "problems": ["story N: claim - why unsupported", ...]}."""
 
 def write(cands, tries=5):
-    cands = [a for a in cands if len(a.get('body') or '') >= 150] or cands     # enough text to state real facts
+    cands = ([a for a in cands if len(a.get('body') or '') >= 150] or cands)[:10]     # enough text to state real facts; 10 keeps the request small
     short = {f'a{i + 1}': a['id'] for i, a in enumerate(cands)}; real2short = {v: k for k, v in short.items()}
-    arts = [{'id': real2short[a['id']], **{k: a[k] for k in ('source', 'title', 'body', 'topic')}} for a in cands]
+    arts = [{'id': real2short[a['id']], 'source': a['source'], 'title': a['title'], 'body': _lead(a['body']), 'topic': a['topic']} for a in cands]
     byid = {k: next(a for a in cands if a['id'] == v) for k, v in short.items()}
     scands = [{'id': k} for k in short]
     msgs = [{'role': 'system', 'content': SYSTEM}, {'role': 'user', 'content': 'CANDIDATES:\n' + json.dumps(arts, ensure_ascii=False)}]
@@ -109,7 +122,7 @@ def write(cands, tries=5):
             print('  writer: format problems ->', probs, flush=True)
             last = 'Fix these problems and return the full JSON again:\n' + '\n'.join(probs)
         else:
-            pack = [{'story': n + 1, 'outlet': byid[x['article_id']]['source'], 'article': byid[x['article_id']]['title'] + '. ' + byid[x['article_id']]['body'],
+            pack = [{'story': n + 1, 'outlet': byid[x['article_id']]['source'], 'article': byid[x['article_id']]['title'] + '. ' + _lead(byid[x['article_id']]['body']),
                      'question': x['question'], 'answer': x['answer'], 'place': x['place']} for n, x in enumerate(s['stories'])]
             cm = [{'role': 'system', 'content': CHECK}, {'role': 'user', 'content': json.dumps(pack, ensure_ascii=False)}]
             try: fc, _ = chat(cm, skip=used)            # a different AI checks the writer's work
@@ -143,6 +156,12 @@ def spoken_outlet(src):
     for k, v in SPOKEN.items():
         if k in low: return v
     return re.sub(r'\s+(World|International|Tech|Technology|Business|Middle East|Europe|Asia|Africa|Americas|Politics|Health|Science|Top Stories|News Feed)$', '', src or '').strip()
+
+def _lead(t, n=600):   # first sentences of an article, up to ~n characters
+    t = (t or '').strip()
+    if len(t) <= n: return t
+    cut = t[:n]; m = list(re.finditer(r'[.!?]["\u201d\']?(?=\s)', cut))
+    return cut[:m[-1].end()] if m else cut.rsplit(' ', 1)[0]
 
 def _trim(t, n):
     t = (t or '').strip()
