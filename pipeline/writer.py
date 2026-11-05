@@ -60,7 +60,7 @@ RULES
   economy, tech and AI, science, climate. AVOID: local crime and court cases about private people, minor local or
   state-level elections, celebrity gossip, sports results, opinion pieces.
 - question: male host, 2-7 words, natural and varied, e.g. "What happened in Spain?", "And in Belgrade?", "What about Yemen?".
-- answer: female anchor, 2-3 short sentences, 20-30 words (hard limit), ONLY facts stated in that article's text. No outside knowledge,
+- answer: female anchor, 2 short sentences, 18-26 words (hard limit), ONLY facts stated in that article's text. No outside knowledge,
   no guesses, no added numbers. Do NOT name any news outlet (the source credit is added automatically).
 - Write every number as spoken words ("thirty-one", "six point three billion dollars"). No digits anywhere in question/answer.
 - Calm, serious tone for deaths and war. Never: website names, "link in bio", prices, "startup", "launch", "free trial".
@@ -156,7 +156,7 @@ def validate(s, cands):
                 if re.search(r'\d', x[f]): p.append(f'story {n}: write numbers as words in the {f}')
                 if BANNED.search(x[f]): p.append(f'story {n}: banned phrase in the {f}')
             if not 2 <= len(x['question'].split()) <= 8: p.append(f'story {n}: question must be 2-7 words')
-            if not 18 <= len(x['answer'].split()) <= 34: p.append(f'story {n}: answer must be 20-30 words, it has {len(x["answer"].split())}')
+            if not 15 <= len(x["answer"].split()) <= 30: p.append(f'story {n}: answer must be 20-30 words, it has {len(x["answer"].split())}')
             if not (-90 <= float(x['lat']) <= 90 and -180 <= float(x['lon']) <= 180): p.append(f'story {n}: bad coordinates')
             if not 1 <= len(x['chips']) <= 3 or any(len(c[0]) > 20 for c in x['chips']): p.append(f'story {n}: 2-3 chips of max 18 chars')
 
