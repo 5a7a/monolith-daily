@@ -1,9 +1,12 @@
-# install CPU torch first:  pip install torch --index-url https://download.pytorch.org/whl/cpu
-pocket-tts
-kokoro-onnx
-faster-whisper
-pillow
-numpy
-scipy
-soundfile
-matplotlib
+# Locked to the versions that worked on 5 Nov 2026, so an upstream update can't break the episode overnight.
+# torch first, CPU build:  pip install torch==2.15.0 --index-url https://download.pytorch.org/whl/cpu
+pocket-tts==4.0.1
+kokoro-onnx==0.6.1
+onnxruntime==1.31.1
+faster-whisper==1.2.1
+ctranslate2==4.8.5
+pillow==13.0.0
+numpy==2.5.4
+scipy==1.18.1
+soundfile==0.14.0
+matplotlib==3.11.2

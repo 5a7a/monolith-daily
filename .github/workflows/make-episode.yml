@@ -19,10 +19,22 @@ jobs:
         run: |
           mkdir -p models
           for f in kokoro-v1.0.onnx voices-v1.0.bin; do
-            [ -f models/$f ] || curl -sSfL -o models/$f https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/$f
+            [ -f models/$f ] || curl -sSfL --retry 5 --retry-delay 10 --retry-all-errors -o models/$f https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/$f
           done
-      - run: sudo apt-get -qq update && sudo apt-get -qq install -y ffmpeg
-      - run: pip install -q torch --index-url https://download.pytorch.org/whl/cpu && pip install -q -r requirements.txt
+      - run: for i in 1 2 3; do sudo apt-get -qq update && sudo apt-get -qq install -y ffmpeg && break; sleep 20; done
+      - name: Install (locked versions, retried if a download fails)
+        run: |
+          for i in 1 2 3; do
+            pip install -q torch==2.15.0 --index-url https://download.pytorch.org/whl/cpu && pip install -q -r requirements.txt && break
+            echo "install failed, retrying"; sleep 30
+          done
+          python -c "import torch, kokoro_onnx, faster_whisper, pocket_tts"
+      - name: Download voice models (retried)
+        run: |
+          for i in 1 2 3; do
+            python -c "from pocket_tts import TTSModel; TTSModel.load_model()" && python -c "from faster_whisper import WhisperModel; WhisperModel('base.en', device='cpu', compute_type='int8'); WhisperModel('small.en', device='cpu', compute_type='int8')" && break
+            echo "model download failed, retrying"; sleep 30
+          done
       - name: Build episode
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -43,21 +55,28 @@ jobs:
         run: |
           python pipeline/review.py out
           for round in 1 2 3 4; do
-            if [ $SECONDS -gt 3000 ]; then echo "out of time for more fix rounds"; break; fi   # ~15 min per round
+            if [ $SECONDS -gt 2400 ]; then echo "out of time for more fix rounds"; break; fi   # ~15 min per round: episode stays on time
             python -c "import json,sys; sys.exit(0 if json.load(open('out/review.json'))['ok'] else 1)" && break
             python pipeline/autofix.py out $round || break
             python pipeline/run.py out --script out/script.json --fixes out/fixes.json
             python pipeline/review.py out
           done
-      - name: Remember new pronunciations
+      - name: Remember pronunciations and covered stories
         if: always()
         run: |
-          if ! git diff --quiet pipeline/learned_say.json pipeline/pronunciations.json; then
+          if ! git diff --quiet pipeline/learned_say.json pipeline/pronunciations.json pipeline/history.json; then
             git config user.name "monolith-bot"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add pipeline/learned_say.json pipeline/pronunciations.json && git commit -m "Learn pronunciations from the AI check" && git pull --rebase -q && git push
+            git add pipeline/learned_say.json pipeline/pronunciations.json pipeline/history.json && git commit -m "Remember pronunciations and covered stories" && git pull --rebase -q && git push
           fi
       - uses: actions/upload-artifact@v4
-        with: { name: episode, path: out/, retention-days: 3 }
+        with:
+          name: episode
+          retention-days: 7
+          path: |
+            out/
+            !out/v*.mp4
+            !out/mix.wav
+            !out/still_*.png
       - name: Send to Telegram for approval
         env: { TG_BOT_TOKEN: '${{ secrets.TG_BOT_TOKEN }}', TG_CHAT_ID: '${{ secrets.TG_CHAT_ID }}', WORKER_URL: '${{ secrets.WORKER_URL }}', PIPE_SECRET: '${{ secrets.PIPE_SECRET }}', AUTO_POST_MINUTES: '30' }
         run: python pipeline/telegram.py review out ${{ github.run_id }}

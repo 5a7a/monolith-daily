@@ -8,16 +8,34 @@ out = os.path.abspath(sys.argv[1]); os.makedirs(out, exist_ok=True); T = time.ti
 def log(*a): print(f'[{time.time() - T:6.1f}s]', *a, flush=True)
 import feed
 cands = feed.candidates(max_age_h=12, n=20)
+if len(cands) < 8: cands = feed.candidates(max_age_h=24, n=20)       # slow news hours: look back a whole day
+
+# ---- stories covered in the last 24h (pipeline/history.json, committed after every episode): don't repeat them
+HIST = os.path.join(HERE, 'history.json')
+hist = json.load(open(HIST)) if os.path.exists(HIST) else []
+cut = dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=24)
+recent = [h for h in hist if dt.datetime.fromisoformat(h['t']) > cut]
+kw = lambda t: {w for w in re.findall(r'[a-z]{4,}', (t or '').lower())} - {'says', 'said', 'after', 'over', 'with', 'from', 'that', 'this', 'more', 'have', 'will', 'into', 'amid'}
+def same_story(a):
+    k = kw(a['title'])
+    return any(len(k & kw(h['title'])) / max(1, min(len(k), len(kw(h['title'])))) >= 0.4 for h in recent)
+fresh = [a for a in cands if not same_story(a)]
+if len(fresh) >= 6: cands = fresh                                     # only if enough is left to choose from
+
 if '--script' in sys.argv:
     S = json.load(open(sys.argv[sys.argv.index('--script') + 1]))
     have = {a['id'] for a in cands}; cands += [a for a in S.get('_articles', []) if a['id'] not in have]
 else:
     import writer
-    S = writer.write(cands)
+    S = writer.write(cands, covered=[h['title'] + (' (' + h['place'] + ')' if h.get('place') else '') for h in recent])
 byid = {a['id']: a for a in cands}
 FX = json.load(open(sys.argv[sys.argv.index('--fixes') + 1])) if '--fixes' in sys.argv else {}
 S['_articles'] = [byid[s['article_id']] for s in S['stories']]   # keep the article texts with the script (re-runs, fixes)
 json.dump(S, open(os.path.join(out, 'script.json'), 'w'), ensure_ascii=False, indent=1); log('script ok')
+if '--script' not in sys.argv:   # remember what this episode covers (kept 48h)
+    keep = [h for h in hist if dt.datetime.fromisoformat(h['t']) > cut - dt.timedelta(hours=24)]
+    keep += [{'t': dt.datetime.now(dt.timezone.utc).isoformat(timespec='seconds'), 'title': byid[x['article_id']]['title'], 'place': x.get('place', '')} for x in S['stories']]
+    json.dump(keep, open(HIST, 'w'), ensure_ascii=False, indent=1)
 json.dump([{k: byid[s['article_id']].get(k) for k in ('id', 'source', 'title', 'body', 'url')} for s in S['stories']], open(os.path.join(out, 'articles.json'), 'w'), ensure_ascii=False)
 
 # ---- date / slot (Istanbul time) and the spoken intro

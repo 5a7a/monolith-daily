@@ -116,13 +116,15 @@ source ("according to <outlet>", "<outlet> has the details", "<outlet> reports")
 doesn't contain the outlet's name. Numbers written as words are the same as digits. Return JSON
 {"ok": true|false, "problems": ["story N: claim - why unsupported", ...]}."""
 
-def write(cands, tries=5):
+def write(cands, tries=5, covered=()):
     cands = ([a for a in cands if len(a.get('body') or '') >= 150] or cands)[:10]     # enough text to state real facts; 10 keeps the request small
     short = {f'a{i + 1}': a['id'] for i, a in enumerate(cands)}; real2short = {v: k for k, v in short.items()}
     arts = [{'id': real2short[a['id']], 'source': a['source'], 'title': a['title'], 'body': _lead(a['body']), 'topic': a['topic']} for a in cands]
     byid = {k: next(a for a in cands if a['id'] == v) for k, v in short.items()}
     scands = [{'id': k} for k in short]
-    msgs = [{'role': 'system', 'content': SYSTEM}, {'role': 'user', 'content': 'CANDIDATES:\n' + json.dumps(arts, ensure_ascii=False)}]
+    told = ('ALREADY COVERED in the last 24 hours (do not pick these events again unless the candidate reports a major new development, '
+            'e.g. a much higher death toll or a decision):\n' + '\n'.join('- ' + c for c in covered) + '\n\n') if covered else ''
+    msgs = [{'role': 'system', 'content': SYSTEM}, {'role': 'user', 'content': told + 'CANDIDATES:\n' + json.dumps(arts, ensure_ascii=False)}]
     last, fails = None, {}
     for attempt in range(tries):
         if last: msgs.append({'role': 'user', 'content': last})
