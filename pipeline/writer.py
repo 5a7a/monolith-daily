@@ -3,21 +3,22 @@ import os, re, json, datetime as dt, urllib.request
 PROVIDERS = [  # (env key, base url, model env, default model)
     ('GEMINI_API_KEY', 'https://generativelanguage.googleapis.com/v1beta/openai', 'GEMINI_MODEL', 'gemini-3.8-flash'),
     ('GROQ_API_KEY', 'https://api.groq.com/openai/v1', 'GROQ_MODEL', 'openai/gpt-oss-120b'),
-    ('GITHUB_MODELS_TOKEN', 'https://models.github.ai/inference', 'GITHUB_MODEL', 'openai/gpt-4.1'),   # free with the repo's own Actions token
+    ('CF_AI_TOKEN', f"https://api.cloudflare.com/client/v4/accounts/{os.environ.get('CF_ACCOUNT_ID', '')}/ai/v1", 'CF_MODEL', '@cf/openai/gpt-oss-120b'),   # same free Cloudflare account as the illustrations
     ('CEREBRAS_API_KEY', 'https://api.cerebras.ai/v1', 'CEREBRAS_MODEL', 'llama-3.3-70b'),
-    ('OPENROUTER_API_KEY', 'https://openrouter.ai/api/v1', 'OPENROUTER_MODEL', 'meta-llama/llama-3.3-70b-instruct:free'),
+    ('OPENROUTER_API_KEY', 'https://openrouter.ai/api/v1', 'OPENROUTER_MODEL', 'openai/gpt-oss-120b:free'),
 ]
 BANNED = re.compile(r'\b(startup|launch(?:ed|ing)?|free trial|pro plan|monolith\.news|link in bio|subscribe|\$\d)', re.I)
 N_STORIES = 4
 
 UA = 'monolith-daily/1.0 (+https://github.com/5a7a/monolith-daily)'   # some APIs block the default Python user agent
-FALLBACK = {'GEMINI_API_KEY': ['gemini-3.5-flash-lite'], 'GITHUB_MODELS_TOKEN': ['openai/gpt-4.1-mini', 'openai/gpt-4o']}                    # tried when the main model is overloaded
+FALLBACK = {'GEMINI_API_KEY': ['gemini-3.5-flash-lite'], 'CF_AI_TOKEN': ['@cf/meta/llama-3.3-70b-instruct-fp8-fast']}                    # tried when the main model is overloaded
 PREFER = ['gpt-oss-120b', 'kimi-k2', 'llama-4-maverick', 'qwen3-235b', 'llama-3.3-70b', 'qwen3-32b', 'gpt-oss-20b', 'llama']   # best first
 
 def _available(base, key):
     try:
         r = json.load(urllib.request.urlopen(urllib.request.Request(base + '/models', headers={'Authorization': 'Bearer ' + key, 'User-Agent': UA}), timeout=30))
         ids = [m['id'] for m in r.get('data', []) if not re.search(r'whisper|tts|guard|embed|vision|audio|image', m['id'], re.I)]
+        if 'openrouter' in base: ids = [i for i in ids if i.endswith(':free')]   # never a paid model
         for p in PREFER:
             for i in ids:
                 if p in i.lower(): return i
@@ -63,7 +64,7 @@ def chat(messages, skip=None, passes=2):
                         if e.code == 429:                                   # per-minute limit: wait it out
                             m = re.search(r'try again in ([\d.]+)s', detail); time.sleep(min(65, float(m.group(1)) + 2) if m else 30 * (attempt + 1)); continue
                         if e.code in (500, 502, 503, 504): time.sleep(15 * (attempt + 1)); continue   # busy: wait and retry
-                        if e.code == 400 and 'json' in detail.lower(): strict = False; continue          # its JSON mode choked: ask plainly
+                        if e.code == 400 and strict: strict = False; continue          # its JSON mode choked or isn't supported: ask plainly
                         if e.code in (400, 404) and 'model' in detail.lower() and not models:              # model retired: ask what exists
                             alt = _available(base, os.environ[key]); models += [alt] if alt and alt not in tried else []
                         break
