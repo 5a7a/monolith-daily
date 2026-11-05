@@ -13,6 +13,10 @@ def api(method, fields=None, files=None):
 def verdict(out):
     try: r = json.load(open(os.path.join(out, 'review.json')))
     except Exception: r = {'ok': False, 'checked': False, 'problems': [{'detail': 'no AI check result'}]}
+    try: names = json.load(open(os.path.join(out, 'name_flags.json')))
+    except Exception: names = []
+    if names:   # a name the voices couldn't get right: never auto-post
+        r = {**r, 'ok': False, 'problems': r.get('problems', []) + [{'type': 'pronunciation', 'severity': 'major', 'detail': n} for n in names]}
     mins = int(os.environ.get('AUTO_POST_MINUTES', '30'))
     if r.get('ok'):
         head = f"✅ AI check passed. Auto-posts in {f'{mins // 60}h{mins % 60:02d}' if mins >= 60 else f'{mins} min'} if you don't answer."

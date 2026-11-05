@@ -50,7 +50,47 @@ for retry in range(2):
     idx = [files.index(f) for f in bad]; log('re-voicing lines', idx)
     voices.synth(lines, out, only=idx, seed=100 * (retry + 1)); W, bad = timing.words(files, lines)
 if bad: raise SystemExit('voice check failed on: ' + ', '.join(bad))
-log('timings ok')
+
+def ask_pron(name, heard, engine):   # the AI writes how to say a name: IPA for Kokoro, a plain respelling for Pocket TTS
+    import writer
+    ex = {k: v for k, v in list(voices.PRON.items())[:4]}
+    if engine == 'kokoro':
+        q = (f'Give the standard American English news-anchor pronunciation of the name "{name}" in IPA, in the same style as these '
+             f'(stress mark before the stressed syllable, no slashes): {json.dumps(ex, ensure_ascii=False)}. Return JSON {{"ipa": "..."}}.')
+    else:
+        q = (f'A text-to-speech voice mispronounces the name "{name}". Write it as plain English respelling that a TTS will read correctly, '
+             f'syllables joined by hyphens, stressed syllable in capitals (e.g. Medina -> meh-DEE-nah). Return JSON {{"say": "..."}}.')
+    v, _ = writer.chat([{'role': 'user', 'content': q}])
+    return str(v.get('ipa') or v.get('say') or '').strip().strip('/')
+
+name_flags = []
+for i, (who, txt, _) in enumerate(lines):
+    wrong = timing.name_check(txt, W[i]['heard'], files[i])
+    if not wrong: continue
+    eng = voices.CFG[who]['engine']
+    for name, heard in wrong:
+        log('name said wrong', f'line {i}: "{name}" heard as "{heard}"')
+        fixed = False
+        for attempt in range(2):                      # 1: the AI's pronunciation, 2: ask again
+            try: how = ask_pron(name, heard, eng)
+            except Exception as e: log('  could not ask the AI', e); break
+            if not how: continue
+            keep_p, keep_s = dict(voices.PRON), dict(voices.LEARNED)
+            if eng == 'kokoro': voices.PRON[name] = how
+            else: voices.LEARNED[name] = how
+            voices.synth(lines, out, only=[i]); w1, _ = timing.words([files[i]], [lines[i]])
+            if name not in [n for n, _ in timing.name_check(txt, w1[0]['heard'], files[i])]:
+                W[i] = w1[0]; fixed = True; log('  fixed with', how)
+                if eng == 'kokoro': voices.save_pron(name, how)
+                else: voices.save_say(name, how)
+                break
+            voices.PRON.clear(); voices.PRON.update(keep_p); voices.LEARNED.clear(); voices.LEARNED.update(keep_s)
+        if not fixed:
+            voices.synth(lines, out, only=[i]); W[i] = timing.words([files[i]], [lines[i]])[0][0]
+            name_flags.append(f'"{name}" may be mispronounced (heard as "{heard}")')
+json.dump(name_flags, open(os.path.join(out, 'name_flags.json'), 'w'))
+json.dump({str(i): key(i) for i in range(len(lines))}, open(hp, 'w'))
+log('timings ok', f'({len(name_flags)} name(s) still flagged)' if name_flags else '')
 
 # ---- place lines on the timeline (gaps as in the approved episode)
 words, t, place = [], 0.3, []

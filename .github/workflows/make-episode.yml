@@ -14,7 +14,7 @@ jobs:
         with: { python-version: '3.11', cache: pip }
       - name: Cache models (Pocket TTS, Whisper, Kokoro)
         uses: actions/cache@v4
-        with: { path: "~/.cache/huggingface\nmodels", key: voice-models-v2 }
+        with: { path: "~/.cache/huggingface\nmodels", key: voice-models-v3 }
       - name: Download Kokoro (first run only)
         run: |
           mkdir -p models
@@ -52,9 +52,9 @@ jobs:
       - name: Remember new pronunciations
         if: always()
         run: |
-          if ! git diff --quiet pipeline/learned_say.json; then
+          if ! git diff --quiet pipeline/learned_say.json pipeline/pronunciations.json; then
             git config user.name "monolith-bot"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add pipeline/learned_say.json && git commit -m "Learn pronunciations from the AI check" && git push
+            git add pipeline/learned_say.json pipeline/pronunciations.json && git commit -m "Learn pronunciations from the AI check" && git pull --rebase -q && git push
           fi
       - uses: actions/upload-artifact@v4
         with: { name: episode, path: out/, retention-days: 3 }

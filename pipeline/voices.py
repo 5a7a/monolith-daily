@@ -39,6 +39,12 @@ def engine(name):
     else: raise ValueError(f'unknown voice engine {name}')
     _E[name] = say; return say
 
+def save_pron(word, ipa):   # remember a fixed pronunciation for every future episode
+    PRON[word] = ipa; d = json.load(open(P('pipeline', 'pronunciations.json'))); d[word] = ipa
+    json.dump(d, open(P('pipeline', 'pronunciations.json'), 'w'), ensure_ascii=False, indent=1)
+def save_say(word, say):
+    LEARNED[word] = say; json.dump(LEARNED, open(_LS, 'w'), ensure_ascii=False, indent=1)
+
 def synth(lines, outdir, only=None, seed=7):
     files = []
     for i, (who, txt, _) in enumerate(lines):
