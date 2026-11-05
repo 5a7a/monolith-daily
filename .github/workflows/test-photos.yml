@@ -1,0 +1,19 @@
+name: test-photos
+on: workflow_dispatch
+permissions: { contents: read }
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install -q pillow
+      - run: |
+          cd pipeline && python -c "
+          import photos, urllib.request
+          for u in ['https://www.france24.com/en/video/20261105-zelensky-in-spain-for-talks-with-world-leaders-as-kyiv-seeks-to-strengthen-air-defences']:
+              print('og_image:', photos.og_image(u))
+              try:
+                  r = urllib.request.urlopen(urllib.request.Request(u, headers={'User-Agent': 'Mozilla/5.0'}), timeout=20); print('status', r.status, len(r.read()))
+              except Exception as e: print('fetch error:', e)
+          print('gdelt:', photos.search_other_outlets('Zelensky in Spain for talks with world leaders as Kyiv seeks to strengthen air defences')[:5])
+          "
