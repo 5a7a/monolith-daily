@@ -77,7 +77,8 @@ for i, st in enumerate(S['stories']):
     a = byid[st['article_id']]; rel = related(a)
     dst = os.path.join(out, f'photo_{i}.jpg'); ai = False; skip = set(FX.get('skip_urls', {}).get(str(i), []))
     prev = json.load(open(os.path.join(out, 'photo_src.json'))).get(str(i)) if os.path.exists(os.path.join(out, 'photo_src.json')) else None
-    sensitive = bool(re.search(r'crime|court|law|trial|murder|police', (a.get('topic') or '') + ' ' + a['title'], re.I))
+    sensitive = bool(re.search(r'crime|law', a.get('topic') or '', re.I) or re.search(
+        r'\b(murder\w*|manslaughter|killing of|court|convicted|sentenced|jury|police|arrested|stabbing|rape|assault|accused)\b', a['title'], re.I))
     if sensitive: skip |= {u for u in [a['url']] + [b['url'] for b in cands]}   # crime/court stories: never a real person's photo
     if prev and prev['src'] not in skip and os.path.exists(dst): img, src, ai = dst, prev['src'], prev['ai']   # keep a photo that passed
     else:

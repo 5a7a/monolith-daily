@@ -67,7 +67,9 @@ RULES
 - Calm, serious tone for deaths and war. Never: website names, "link in bio", prices, "startup", "launch", "free trial".
 - chips: 2-3 on-screen fact labels per story, CAPS, max 18 characters, e.g. ["31 KILLED","thirty-one"], ["TALKS RESUME","talks"].
   Second item = the word in the answer where the chip pops. Chips with numbers start with the digits.
-- place: "CITY, COUNTRY" or "REGION, COUNTRY" in caps, max 22 chars; lat/lon = real coordinates of that place.
+- place: WHERE THE EVENT HAPPENS according to the article ("CITY, COUNTRY" or "REGION, COUNTRY", caps, max 22 chars), never
+  the outlet's home country. A WHO decision -> "GENEVA, SWITZERLAND"; an outbreak in Congo -> "DR CONGO". lat/lon = that place.
+- question: asks about the event's own place or subject ("What about the Ebola outbreak?"), never the outlet's country.
 - rundown: "COUNTRY  ·  SHORT SUMMARY" in caps, max 40 chars.
 - keys: 1-3 words from the answer to highlight (numbers and the key noun).\n- image_prompt: one sentence describing a simple symbolic scene for the story (objects and setting only, no real people, no text).
 Return JSON:
@@ -77,7 +79,8 @@ Return JSON:
  "hashtags":["5 specific hashtags, no #reels/#explore"]}"""
 
 CHECK = """You are a strict fact checker. For each story, list every factual claim in its answer (numbers, names, places, causes,
-who said what). Each claim must be directly supported by THAT story's article text. Naming the story's own outlet as the
+who said what). Each claim must be directly supported by THAT story's article text. Also check that "place" is where the
+story's events actually happen according to the article (not just the outlet's country), and that the question fits the story. Naming the story's own outlet as the
 source ("according to <outlet>", "<outlet> has the details", "<outlet> reports") is always allowed, even if the article text
 doesn't contain the outlet's name. Numbers written as words are the same as digits. Return JSON
 {"ok": true|false, "problems": ["story N: claim - why unsupported", ...]}."""
@@ -85,7 +88,7 @@ doesn't contain the outlet's name. Numbers written as words are the same as digi
 def write(cands, tries=5):
     cands = [a for a in cands if len(a.get('body') or '') >= 150] or cands     # enough text to state real facts
     short = {f'a{i + 1}': a['id'] for i, a in enumerate(cands)}; real2short = {v: k for k, v in short.items()}
-    arts = [{'id': real2short[a['id']], **{k: a[k] for k in ('source', 'title', 'body', 'topic', 'countries')}} for a in cands]
+    arts = [{'id': real2short[a['id']], **{k: a[k] for k in ('source', 'title', 'body', 'topic')}} for a in cands]
     byid = {k: next(a for a in cands if a['id'] == v) for k, v in short.items()}
     scands = [{'id': k} for k in short]
     msgs = [{'role': 'system', 'content': SYSTEM}, {'role': 'user', 'content': 'CANDIDATES:\n' + json.dumps(arts, ensure_ascii=False)}]
@@ -104,7 +107,7 @@ def write(cands, tries=5):
             last = 'Fix these problems and return the full JSON again:\n' + '\n'.join(probs)
         else:
             pack = [{'story': n + 1, 'outlet': byid[x['article_id']]['source'], 'article': byid[x['article_id']]['title'] + '. ' + byid[x['article_id']]['body'],
-                     'answer': x['answer']} for n, x in enumerate(s['stories'])]
+                     'question': x['question'], 'answer': x['answer'], 'place': x['place']} for n, x in enumerate(s['stories'])]
             cm = [{'role': 'system', 'content': CHECK}, {'role': 'user', 'content': json.dumps(pack, ensure_ascii=False)}]
             try: fc, _ = chat(cm, skip=used)            # a different AI checks the writer's work
             except RuntimeError: fc, _ = chat(cm)        # none other available: same provider, fresh conversation
