@@ -2,7 +2,7 @@
 import os, re, json, datetime as dt, urllib.request
 PROVIDERS = [  # (env key, base url, model env, default model)
     ('GEMINI_API_KEY', 'https://generativelanguage.googleapis.com/v1beta/openai', 'GEMINI_MODEL', 'gemini-3.8-flash'),
-    ('GROQ_API_KEY', 'https://api.groq.com/openai/v1', 'GROQ_MODEL', 'llama-3.3-70b-versatile'),
+    ('GROQ_API_KEY', 'https://api.groq.com/openai/v1', 'GROQ_MODEL', 'openai/gpt-oss-120b'),
     ('CEREBRAS_API_KEY', 'https://api.cerebras.ai/v1', 'CEREBRAS_MODEL', 'llama-3.3-70b'),
     ('OPENROUTER_API_KEY', 'https://openrouter.ai/api/v1', 'OPENROUTER_MODEL', 'meta-llama/llama-3.3-70b-instruct:free'),
 ]
@@ -11,6 +11,17 @@ N_STORIES = 4
 
 UA = 'monolith-daily/1.0 (+https://github.com/5a7a/monolith-daily)'   # some APIs block the default Python user agent
 FALLBACK = {'GEMINI_API_KEY': ['gemini-3.5-flash-lite']}                    # tried when the main model is overloaded
+PREFER = ['gpt-oss-120b', 'kimi-k2', 'llama-4-maverick', 'qwen3-235b', 'llama-3.3-70b', 'qwen3-32b', 'gpt-oss-20b', 'llama']   # best first
+
+def _available(base, key):
+    try:
+        r = json.load(urllib.request.urlopen(urllib.request.Request(base + '/models', headers={'Authorization': 'Bearer ' + key, 'User-Agent': UA}), timeout=30))
+        ids = [m['id'] for m in r.get('data', []) if not re.search(r'whisper|tts|guard|embed|vision|audio|image', m['id'], re.I)]
+        for p in PREFER:
+            for i in ids:
+                if p in i.lower(): return i
+        return ids[0] if ids else None
+    except Exception: return None
 
 def _call(base, key, model, messages):
     body = json.dumps({'model': model, 'messages': messages, 'temperature': 0.5, 'response_format': {'type': 'json_object'}}).encode()
@@ -23,14 +34,20 @@ def chat(messages, skip=None):
     err = []
     for key, base, menv, mdef in PROVIDERS:
         if not os.environ.get(key) or key == skip: continue
-        for model in [os.environ.get(menv, mdef)] + FALLBACK.get(key, []):
+        models = [os.environ.get(menv, mdef)] + FALLBACK.get(key, []); tried = set()
+        while models:
+            model = models.pop(0)
+            if model in tried or not model: continue
+            tried.add(model)
             for attempt in range(3):
                 try: return _call(base, os.environ[key], model, messages), key
                 except urllib.error.HTTPError as e:
                     detail = e.read().decode('utf-8', 'ignore')[:200].replace('\n', ' ')
                     err.append(f'{key} {model}: HTTP {e.code} {detail}')
                     if e.code in (429, 500, 502, 503, 504): time.sleep(15 * (attempt + 1)); continue   # busy: wait and retry
-                    break                                                                              # bad key/model: next option
+                    if e.code in (400, 404) and 'model' in detail.lower() and not models:              # model retired: ask what exists
+                        alt = _available(base, os.environ[key]); models += [alt] if alt and alt not in tried else []
+                    break
                 except Exception as e:
                     err.append(f'{key} {model}: {e}'); time.sleep(5)
     raise RuntimeError('no LLM provider worked: ' + ' | '.join(err[-6:]))
@@ -64,21 +81,32 @@ doesn't contain the outlet's name. Numbers written as words are the same as digi
 
 def write(cands, tries=5):
     cands = [a for a in cands if len(a.get('body') or '') >= 150] or cands     # enough text to state real facts
-    arts = [{k: a[k] for k in ('id', 'source', 'title', 'body', 'topic', 'countries')} for a in cands]
-    byid = {a['id']: a for a in cands}
+    short = {f'a{i + 1}': a['id'] for i, a in enumerate(cands)}; real2short = {v: k for k, v in short.items()}
+    arts = [{'id': real2short[a['id']], **{k: a[k] for k in ('source', 'title', 'body', 'topic', 'countries')}} for a in cands]
+    byid = {k: next(a for a in cands if a['id'] == v) for k, v in short.items()}
+    scands = [{'id': k} for k in short]
     msgs = [{'role': 'system', 'content': SYSTEM}, {'role': 'user', 'content': 'CANDIDATES:\n' + json.dumps(arts, ensure_ascii=False)}]
     last, fails = None, {}
     for attempt in range(tries):
         if last: msgs.append({'role': 'user', 'content': last})
-        s, used = chat(msgs); probs = validate(s, cands)
+        s, used = chat(msgs)
+        for x in s.get('stories', []):                    # trim labels instead of rejecting the whole script
+            if isinstance(x.get('place'), str): x['place'] = x['place'][:24]
+            if isinstance(x.get('rundown'), str): x['rundown'] = x['rundown'][:44]
+            x['article_id'] = str(x.get('article_id', '')).strip()
+        probs = validate(s, scands)
         if probs:
             print('  writer: format problems ->', probs, flush=True)
             last = 'Fix these problems and return the full JSON again:\n' + '\n'.join(probs)
         else:
             pack = [{'story': n + 1, 'outlet': byid[x['article_id']]['source'], 'article': byid[x['article_id']]['title'] + '. ' + byid[x['article_id']]['body'],
                      'answer': x['answer']} for n, x in enumerate(s['stories'])]
-            fc, _ = chat([{'role': 'system', 'content': CHECK}, {'role': 'user', 'content': json.dumps(pack, ensure_ascii=False)}], skip=used)
-            if fc.get('ok'): return s
+            cm = [{'role': 'system', 'content': CHECK}, {'role': 'user', 'content': json.dumps(pack, ensure_ascii=False)}]
+            try: fc, _ = chat(cm, skip=used)            # a different AI checks the writer's work
+            except RuntimeError: fc, _ = chat(cm)        # none other available: same provider, fresh conversation
+            if fc.get('ok'):
+                for x in s['stories']: x['article_id'] = short[x['article_id']]   # back to the feed's real ids
+                return s
             probs = fc.get('problems') or ['fact check failed']
             print('  writer: fact check ->', probs, flush=True)
             bad = sorted({int(n) - 1 for p in probs for n in re.findall(r'story\s*(\d)', str(p), re.I) if 0 < int(n) <= len(s['stories'])})
