@@ -1,0 +1,15 @@
+name: test-models
+on: workflow_dispatch
+permissions: { contents: read, models: read }
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - env: { GITHUB_MODELS_TOKEN: '${{ secrets.GITHUB_TOKEN }}' }
+        run: |
+          cd pipeline && python -c "
+          import writer
+          for m in ['openai/gpt-4.1', 'openai/gpt-4.1-mini']:
+              print(m, writer._call('https://models.github.ai/inference', __import__('os').environ['GITHUB_MODELS_TOKEN'], m, [{'role':'user','content':'Return JSON {\"ok\": true, \"capital_of_france\": \"...\"}'}]))
+          "

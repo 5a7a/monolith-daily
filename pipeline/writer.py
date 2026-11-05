@@ -3,6 +3,7 @@ import os, re, json, datetime as dt, urllib.request
 PROVIDERS = [  # (env key, base url, model env, default model)
     ('GEMINI_API_KEY', 'https://generativelanguage.googleapis.com/v1beta/openai', 'GEMINI_MODEL', 'gemini-3.8-flash'),
     ('GROQ_API_KEY', 'https://api.groq.com/openai/v1', 'GROQ_MODEL', 'openai/gpt-oss-120b'),
+    ('GITHUB_MODELS_TOKEN', 'https://models.github.ai/inference', 'GITHUB_MODEL', 'openai/gpt-4.1'),   # free with the repo's own Actions token
     ('CEREBRAS_API_KEY', 'https://api.cerebras.ai/v1', 'CEREBRAS_MODEL', 'llama-3.3-70b'),
     ('OPENROUTER_API_KEY', 'https://openrouter.ai/api/v1', 'OPENROUTER_MODEL', 'meta-llama/llama-3.3-70b-instruct:free'),
 ]
@@ -10,7 +11,7 @@ BANNED = re.compile(r'\b(startup|launch(?:ed|ing)?|free trial|pro plan|monolith\
 N_STORIES = 4
 
 UA = 'monolith-daily/1.0 (+https://github.com/5a7a/monolith-daily)'   # some APIs block the default Python user agent
-FALLBACK = {'GEMINI_API_KEY': ['gemini-3.5-flash-lite']}                    # tried when the main model is overloaded
+FALLBACK = {'GEMINI_API_KEY': ['gemini-3.5-flash-lite'], 'GITHUB_MODELS_TOKEN': ['openai/gpt-4.1-mini', 'openai/gpt-4o']}                    # tried when the main model is overloaded
 PREFER = ['gpt-oss-120b', 'kimi-k2', 'llama-4-maverick', 'qwen3-235b', 'llama-3.3-70b', 'qwen3-32b', 'gpt-oss-20b', 'llama']   # best first
 
 def _available(base, key):
