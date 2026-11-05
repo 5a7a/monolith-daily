@@ -81,7 +81,8 @@ def ask_pron(name, heard, engine):   # the AI writes how to say a name: IPA for 
     v, _ = writer.chat([{'role': 'user', 'content': q}])
     return str(v.get('ipa') or v.get('say') or '').strip().strip('/')
 
-name_flags = []
+name_flags = []; learned_now = []
+MANUAL = set(json.load(open(os.path.join(HERE, 'pronunciations.json')))) | set(voices.LEARNED)   # as they were before this episode
 for i, (who, txt, _) in enumerate(lines):
     wrong = timing.name_check(txt, W[i]['heard'], files[i])
     if not wrong: continue
@@ -99,14 +100,17 @@ for i, (who, txt, _) in enumerate(lines):
             voices.synth(lines, out, only=[i]); w1, _ = timing.words([files[i]], [lines[i]])
             if name not in [n for n, _ in timing.name_check(txt, w1[0]['heard'], files[i])]:
                 W[i] = w1[0]; fixed = True; log('  fixed with', how)
-                if eng == 'kokoro': voices.save_pron(name, how)
-                else: voices.save_say(name, how)
+                if name in MANUAL: pass                                    # a pronunciation set by hand is never overwritten
+                elif eng == 'kokoro': voices.save_pron(name, how); learned_now.append(f'{name} ({"female" if eng == "kokoro" else "male"} voice)')
+                else: voices.save_say(name, how); learned_now.append(f'{name} → "{how}" (male voice)')
                 break
             voices.PRON.clear(); voices.PRON.update(keep_p); voices.LEARNED.clear(); voices.LEARNED.update(keep_s)
         if not fixed:
             voices.synth(lines, out, only=[i]); W[i] = timing.words([files[i]], [lines[i]])[0][0]
             name_flags.append(f'"{name}" may be mispronounced (heard as "{heard}")')
 json.dump(name_flags, open(os.path.join(out, 'name_flags.json'), 'w'))
+old_l = json.load(open(os.path.join(out, 'learned_names.json'))) if os.path.exists(os.path.join(out, 'learned_names.json')) else []
+json.dump(old_l + learned_now, open(os.path.join(out, 'learned_names.json'), 'w'), ensure_ascii=False)
 json.dump({str(i): key(i) for i in range(len(lines))}, open(hp, 'w'))
 log('timings ok', f'({len(name_flags)} name(s) still flagged)' if name_flags else '')
 
@@ -202,7 +206,7 @@ subprocess.run(['ffmpeg', '-v', 'error', '-y', '-f', 'concat', '-safe', '0', '-i
                 '-r', '30', '-g', '60', '-c:a', 'aac', '-b:a', '128k', '-ar', '48000', '-shortest', '-movflags', '+faststart', mp4], check=True)
 subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', mp4, '-vf', 'scale=720:1280', '-c:v', 'libx264', '-preset', 'medium', '-crf', '26',
                 '-c:a', 'aac', '-b:a', '96k', '-movflags', '+faststart', os.path.join(out, 'preview.mp4')], check=True)   # Telegram bots can send max 50 MB
-caption = S['caption'].strip() + '\n\n' + ' '.join('#' + h.lstrip('#') for h in S['hashtags'][:5])
+caption = S['caption'].strip() + '\n\n' + ' '.join('#' + h.lstrip('#') for h in S['hashtags'][:5]) + '\n\nAI voices · VCTK corpus'   # credit the voice licence requires
 srcs = '\n'.join(f"• {s['outlet']}: {s['headline']}" for s in stories)
 json.dump({'caption': caption, 'sources': srcs, 'seconds': round(B.TOTAL, 1)}, open(os.path.join(out, 'meta.json'), 'w'), ensure_ascii=False)
 log('done', mp4)
