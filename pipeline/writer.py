@@ -39,7 +39,7 @@ def _call(base, key, model, messages, strict=True):
     if strict: q['response_format'] = {'type': 'json_object'}
     body = json.dumps(q).encode()
     req = urllib.request.Request(base + '/chat/completions', body, {'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json', 'User-Agent': UA})
-    r = json.load(urllib.request.urlopen(req, timeout=180)); txt = r['choices'][0]['message'].get('content') or ''
+    r = json.load(urllib.request.urlopen(req, timeout=100)); txt = r['choices'][0]['message'].get('content') or ''
     if '{' not in txt: raise ValueError('empty reply')
     return json.loads(txt[txt.find('{'): txt.rfind('}') + 1])
 
@@ -57,10 +57,13 @@ def chat(messages, skip=None, passes=2):
                 if model in tried or not model: continue
                 tried.add(model); strict = True
                 for attempt in range(3):
-                    try: return _call(base, os.environ[key], model, messages, strict), key
+                    t0 = time.time()
+                    try:
+                        res = _call(base, os.environ[key], model, messages, strict)
+                        print(f'    ai: {model} answered in {time.time() - t0:.0f}s', flush=True); return res, key
                     except urllib.error.HTTPError as e:
                         detail = e.read().decode('utf-8', 'ignore')[:200].replace('\n', ' ')
-                        err.append(f'{key} {model}: HTTP {e.code} {detail}')
+                        err.append(f'{key} {model}: HTTP {e.code} {detail}'); print(f'    ai: {model} HTTP {e.code} after {time.time() - t0:.0f}s', flush=True)
                         if e.code == 429:                                   # per-minute limit: wait it out
                             m = re.search(r'try again in ([\d.]+)s', detail); time.sleep(min(65, float(m.group(1)) + 2) if m else 30 * (attempt + 1)); continue
                         if e.code in (500, 502, 503, 504):                 # busy: first time round move straight on to the next AI
@@ -71,7 +74,9 @@ def chat(messages, skip=None, passes=2):
                             alt = _available(base, os.environ[key]); models += [alt] if alt and alt not in tried else []
                         break
                     except Exception as e:
-                        err.append(f'{key} {model}: {e}'); strict = False; time.sleep(5)
+                        err.append(f'{key} {model}: {e}'); print(f'    ai: {model} failed after {time.time() - t0:.0f}s: {str(e)[:80]}', flush=True)
+                        if p == 0 and time.time() - t0 > 60: break              # hung / too slow: move on to the next AI
+                        strict = False; time.sleep(5)
     raise RuntimeError('no LLM provider worked: ' + ' | '.join(err[-6:]))
 
 SYSTEM = """You write the "Monolith Briefing", a ~55 second vertical news video. A male host asks one short question
