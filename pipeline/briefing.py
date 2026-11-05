@@ -105,6 +105,30 @@ def landpts():
             out.append(np.stack([np.cos(la) * np.sin(lo), np.sin(la), np.cos(la) * np.cos(lo)], 1))
         _land = out
     return _land
+_mask = None; _disk = {}
+def landmask():   # land as an equirectangular bitmap (0.125 deg); handles polygons across the date line and around the pole
+    global _mask
+    if _mask is None:
+        MW, MH = 2880, 1440; m = Image.new('L', (MW, MH), 0); dm = ImageDraw.Draw(m)
+        for p in json.load(open(os.path.join(ROOT, 'assets', 'land.json'))):
+            lo = np.unwrap(np.radians([v[0] for v in p])) * 180 / math.pi; la = np.array([v[1] for v in p], float)
+            if abs(lo[-1] - lo[0]) > 180:                       # wraps around a pole: close it over the pole
+                pole = -90.0 if la.mean() < 0 else 90.0; lo = np.r_[lo, lo[-1], lo[0]]; la = np.r_[la, pole, pole]
+            for sh in (-360, 0, 360):
+                dm.polygon(list(zip((lo + sh + 180) / 360 * MW, (90 - la) / 180 * MH)), fill=255)
+        _mask = np.asarray(m) > 127
+    return _mask
+def land_layer(n, lon0, lat0):   # n x n boolean: which pixels of the globe disc show land
+    if n not in _disk:
+        c = (np.arange(n) + 0.5 - n / 2) / (n / 2); X, Y = np.meshgrid(c, -c); inside = X * X + Y * Y < 1
+        _disk[n] = (X, Y, np.sqrt(np.clip(1 - X * X - Y * Y, 0, 1)), inside)
+    X, Y, Z, inside = _disk[n]; lo, la = math.radians(lon0), math.radians(lat0)
+    y = Y * math.cos(la) + Z * math.sin(la); z = -Y * math.sin(la) + Z * math.cos(la)
+    vx = X * math.cos(lo) + z * math.sin(lo); vz = -X * math.sin(lo) + z * math.cos(lo)
+    lat = np.degrees(np.arcsin(np.clip(y, -1, 1))); lon = np.degrees(np.arctan2(vx, vz))
+    M = landmask(); MH, MW = M.shape
+    return M[np.clip(((90 - lat) / 180 * MH).astype(int), 0, MH - 1), np.clip(((lon + 180) / 360 * MW).astype(int), 0, MW - 1)] & inside
+
 def rot(v, lon0, lat0):
     lo, la = math.radians(lon0), math.radians(lat0)
     x = v[..., 0] * math.cos(lo) - v[..., 2] * math.sin(lo); z = v[..., 0] * math.sin(lo) + v[..., 2] * math.cos(lo); y = v[..., 1]
@@ -133,13 +157,11 @@ def globe(img, cx, cy, R, lon0, lat0, pins=()):
     for lon in range(-180, 180, 20): poly_lines(np.array([ll(la, lon) for la in range(-90, 91, 4)]))
     for lat in range(-60, 61, 20): poly_lines(np.array([ll(lat, lo) for lo in range(-180, 181, 4)]))
     lf = hx('17303F'); lo_ = hx('3C6278')
+    n = int(round(2 * R)); lm = Image.fromarray((land_layer(n, lon0, lat0) * 255).astype(np.uint8)).resize((n * S, n * S), Image.BILINEAR)
+    sub.paste(Image.new('RGB', lm.size, lf), (int(round(scx - n * S / 2)), int(round(scy - n * S / 2))), lm)
     for p in landpts():
         r = rot(p, lon0, lat0)
         if r[:, 2].max() <= 0: continue
-        X = r[:, 0].copy(); Y = r[:, 1].copy(); bk = r[:, 2] <= 0
-        if bk.any():
-            n = np.sqrt(X[bk] ** 2 + Y[bk] ** 2) + 1e-9; X[bk] /= n; Y[bk] /= n
-        d.polygon(list(zip(scx + sR * X, scy - sR * Y)), fill=lf)
         for i in range(len(r) - 1):
             if r[i, 2] > 0 and r[i + 1, 2] > 0:
                 d.line((scx + sR * r[i, 0], scy - sR * r[i, 1], scx + sR * r[i + 1, 0], scy - sR * r[i + 1, 1]), fill=lo_, width=2)
