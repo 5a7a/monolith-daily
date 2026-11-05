@@ -7,7 +7,7 @@ permissions: { contents: write }
 jobs:
   make:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 100
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -41,6 +41,7 @@ jobs:
         run: |
           python pipeline/review.py out
           for round in 1 2 3 4; do
+            if [ $SECONDS -gt 3000 ]; then echo "out of time for more fix rounds"; break; fi   # ~15 min per round
             python -c "import json,sys; sys.exit(0 if json.load(open('out/review.json'))['ok'] else 1)" && break
             python pipeline/autofix.py out $round || break
             python pipeline/run.py out --script out/script.json --fixes out/fixes.json
@@ -59,7 +60,7 @@ jobs:
         env: { TG_BOT_TOKEN: '${{ secrets.TG_BOT_TOKEN }}', TG_CHAT_ID: '${{ secrets.TG_CHAT_ID }}', WORKER_URL: '${{ secrets.WORKER_URL }}', PIPE_SECRET: '${{ secrets.PIPE_SECRET }}', AUTO_POST_MINUTES: '120' }
         run: python pipeline/telegram.py review out ${{ github.run_id }}
       - name: Report failure
-        if: failure()
+        if: failure() || cancelled()
         env: { TG_BOT_TOKEN: '${{ secrets.TG_BOT_TOKEN }}', TG_CHAT_ID: '${{ secrets.TG_CHAT_ID }}' }
         run: |
           python pipeline/telegram.py say "Episode failed. Log: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

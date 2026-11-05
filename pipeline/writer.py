@@ -23,33 +23,38 @@ def _available(base, key):
         return ids[0] if ids else None
     except Exception: return None
 
-def _call(base, key, model, messages):
-    body = json.dumps({'model': model, 'messages': messages, 'temperature': 0.5, 'response_format': {'type': 'json_object'}}).encode()
+def _call(base, key, model, messages, strict=True):
+    q = {'model': model, 'messages': messages, 'temperature': 0.5}
+    if strict: q['response_format'] = {'type': 'json_object'}
+    body = json.dumps(q).encode()
     req = urllib.request.Request(base + '/chat/completions', body, {'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json', 'User-Agent': UA})
     r = json.load(urllib.request.urlopen(req, timeout=180)); txt = r['choices'][0]['message']['content']
     return json.loads(txt[txt.find('{'): txt.rfind('}') + 1])
 
-def chat(messages, skip=None):
+def chat(messages, skip=None, passes=2):
     import time, urllib.error
     err = []
-    for key, base, menv, mdef in PROVIDERS:
-        if not os.environ.get(key) or key == skip: continue
-        models = [os.environ.get(menv, mdef)] + FALLBACK.get(key, []); tried = set()
-        while models:
-            model = models.pop(0)
-            if model in tried or not model: continue
-            tried.add(model)
-            for attempt in range(3):
-                try: return _call(base, os.environ[key], model, messages), key
-                except urllib.error.HTTPError as e:
-                    detail = e.read().decode('utf-8', 'ignore')[:200].replace('\n', ' ')
-                    err.append(f'{key} {model}: HTTP {e.code} {detail}')
-                    if e.code in (429, 500, 502, 503, 504): time.sleep(15 * (attempt + 1)); continue   # busy: wait and retry
-                    if e.code in (400, 404) and 'model' in detail.lower() and not models:              # model retired: ask what exists
-                        alt = _available(base, os.environ[key]); models += [alt] if alt and alt not in tried else []
-                    break
-                except Exception as e:
-                    err.append(f'{key} {model}: {e}'); time.sleep(5)
+    for p in range(passes):                       # every provider busy at once: wait a minute, go round again
+        if p: time.sleep(60)
+        for key, base, menv, mdef in PROVIDERS:
+            if not os.environ.get(key) or key == skip: continue
+            models = [os.environ.get(menv, mdef)] + FALLBACK.get(key, []); tried = set()
+            while models:
+                model = models.pop(0)
+                if model in tried or not model: continue
+                tried.add(model); strict = True
+                for attempt in range(3):
+                    try: return _call(base, os.environ[key], model, messages, strict), key
+                    except urllib.error.HTTPError as e:
+                        detail = e.read().decode('utf-8', 'ignore')[:200].replace('\n', ' ')
+                        err.append(f'{key} {model}: HTTP {e.code} {detail}')
+                        if e.code in (429, 500, 502, 503, 504): time.sleep(15 * (attempt + 1)); continue   # busy: wait and retry
+                        if e.code == 400 and 'json' in detail.lower(): strict = False; continue          # its JSON mode choked: ask plainly
+                        if e.code in (400, 404) and 'model' in detail.lower() and not models:              # model retired: ask what exists
+                            alt = _available(base, os.environ[key]); models += [alt] if alt and alt not in tried else []
+                        break
+                    except Exception as e:
+                        err.append(f'{key} {model}: {e}'); strict = False; time.sleep(5)
     raise RuntimeError('no LLM provider worked: ' + ' | '.join(err[-6:]))
 
 SYSTEM = """You write the "Monolith Briefing", a ~55 second vertical news video. A male host asks one short question
@@ -156,6 +161,7 @@ def validate(s, cands):
                 if re.search(r'\d', x[f]): p.append(f'story {n}: write numbers as words in the {f}')
                 if BANNED.search(x[f]): p.append(f'story {n}: banned phrase in the {f}')
             if not 2 <= len(x['question'].split()) <= 8: p.append(f'story {n}: question must be 2-7 words')
+            if not x['answer'].rstrip().endswith(('.', '!', '?')): p.append(f'story {n}: the answer must end with a full sentence')
             if not 15 <= len(x["answer"].split()) <= 30: p.append(f'story {n}: answer must be 20-30 words, it has {len(x["answer"].split())}')
             if not (-90 <= float(x['lat']) <= 90 and -180 <= float(x['lon']) <= 180): p.append(f'story {n}: bad coordinates')
             if not 1 <= len(x['chips']) <= 3 or any(len(c[0]) > 20 for c in x['chips']): p.append(f'story {n}: 2-3 chips of max 18 chars')

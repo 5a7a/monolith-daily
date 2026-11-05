@@ -24,6 +24,20 @@ def facts_ok(story, text):
         return bool(v.get('ok'))
     except Exception: return False
 
+def rewrite_line(story, kind, problem):   # ask the writer for a corrected line, using only the article's facts
+    try:
+        import writer
+        a = arts[S['stories'][story]['article_id']]; cur = S['stories'][story][kind]
+        rule = ('2 short complete sentences, 18-26 words, facts from the article only, numbers as words, no outlet names'
+                if kind == 'answer' else '2-7 words, a question about the story\'s place or subject')
+        v, _ = writer.chat([{'role': 'system', 'content': f'Rewrite one line of a news video script. Rules: {rule}. Return JSON {{"text": "..."}}.'},
+                            {'role': 'user', 'content': json.dumps({'article': a['title'] + '. ' + a['body'], 'current_line': cur, 'problem': problem}, ensure_ascii=False)}])
+        t = str(v.get('text', '')).strip()
+        if kind == 'answer' and story == len(S['stories']) - 1 and 'has the details' in cur:   # keep the closing credit
+            t = t.rstrip() + ' ' + cur[cur.rindex('.', 0, cur.index('has the details')) + 1:].strip()
+        return t
+    except Exception: return ''
+
 for p in rev.get('problems', []):
     f = p.get('fix') or {}; act = f.get('action'); what = p.get('detail', '')[:120]
     try:
@@ -32,7 +46,13 @@ for p in rev.get('problems', []):
             FX.setdefault('say', {})[w] = say; learned[w] = say       # remembered for every future episode
             done.append(f'taught the voices to say "{w}" as "{say}"')
         elif act == 'revoice' and isinstance(f.get('line'), int) and 0 <= f['line'] < len(lines):
-            FX.setdefault('revoice', []).append(f['line']); done.append(f"re-recorded line {f['line']} ({what})")
+            n = f['line']; tries = FX.setdefault('revoiced', {}); st, kind = story_line(n)
+            if tries.get(str(n)) and st is not None:          # re-recording didn't help: the words themselves are wrong
+                t = rewrite_line(st, kind, p.get('detail', ''))
+                if t and not re.search(r'\d', t) and not BANNED.search(t) and (kind == 'question' or facts_ok(st, t)):
+                    S['stories'][st][kind] = t; done.append(f'rewrote line {n}: "{t}"'); continue
+            tries[str(n)] = tries.get(str(n), 0) + 1
+            FX.setdefault('revoice', []).append(n); done.append(f"re-recorded line {n} ({what})")
         elif act == 'rewrite' and isinstance(f.get('line'), int):
             st, kind = story_line(f['line']); t = (f.get('text') or '').strip()
             if st is None or not t or re.search(r'\d', t) or BANNED.search(t): continue
