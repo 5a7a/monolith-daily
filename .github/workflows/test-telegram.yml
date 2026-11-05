@@ -1,0 +1,17 @@
+name: test-telegram
+on: { workflow_dispatch: {} }   # Actions -> test-telegram -> Run workflow: checks TG_BOT_TOKEN and TG_CHAT_ID
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send a test message
+        env: { TG_BOT_TOKEN: '${{ secrets.TG_BOT_TOKEN }}', TG_CHAT_ID: '${{ secrets.TG_CHAT_ID }}' }
+        run: |
+          [ -n "$TG_BOT_TOKEN" ] || { echo "::error::TG_BOT_TOKEN secret is missing"; exit 1; }
+          [ -n "$TG_CHAT_ID" ] || { echo "::error::TG_CHAT_ID secret is missing"; exit 1; }
+          me=$(curl -s "https://api.telegram.org/bot$TG_BOT_TOKEN/getMe")
+          echo "$me" | grep -q '"ok":true' || { echo "::error::TG_BOT_TOKEN is wrong (Telegram says: $me)"; exit 1; }
+          echo "Token OK: $(echo "$me" | grep -o '"username":"[^"]*"')"
+          r=$(curl -s "https://api.telegram.org/bot$TG_BOT_TOKEN/sendMessage" -d chat_id="$TG_CHAT_ID" -d text="✅ Monolith bot connected. Token and chat ID are correct.")
+          echo "$r" | grep -q '"ok":true' || { echo "::error::Token is fine but TG_CHAT_ID is wrong, or you haven't pressed Start in the bot (Telegram says: $r)"; exit 1; }
+          echo "Message sent"
