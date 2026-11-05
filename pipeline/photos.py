@@ -30,6 +30,19 @@ def fetch(urls, out, skip=(), check=None):
     return None, None
 
 VISION = [('GEMINI_API_KEY', None), ('GROQ_API_KEY', 'meta-llama/llama-4-scout-17b-16e-instruct'), ('OPENROUTER_API_KEY', 'google/gemma-4-31b-it:free')]
+_SEEN = set()
+def _vision_model(base, key):
+    import json
+    try:
+        r = json.load(urllib.request.urlopen(urllib.request.Request(base + '/models', headers={'Authorization': 'Bearer ' + key, 'User-Agent': UA['User-Agent']}), timeout=30))
+        ids = [m['id'] for m in r.get('data', [])]
+        if 'openrouter' in base: ids = [i for i in ids if i.endswith(':free')]
+        for pat in ('llama-4-maverick', 'llama-4-scout', 'gemma-4', 'vision', 'vl'):
+            hit = [i for i in ids if pat in i.lower() and 'guard' not in i.lower()]
+            if hit: return hit[0]
+    except Exception: pass
+    return None
+
 def screen(path, headline, sensitive=False):
     """An AI looks at the photo before it's used. False = don't use it: graphic (bodies, body bags, blood, injuries),
     doesn't fit the story (logo, placeholder, unrelated), mostly text, or an identifiable private person in a sensitive story.
@@ -46,8 +59,18 @@ def screen(path, headline, sensitive=False):
     for key, model in VISION:
         prov = next((p for p in writer.PROVIDERS if p[0] == key), None)
         if not prov or not os.environ.get(key): continue
-        try: v = writer._call(prov[1], os.environ[key], model or os.environ.get(prov[2], prov[3]), msg)
-        except Exception as e: print('    photo check:', key, str(e)[:100], flush=True); continue
+        m = model or os.environ.get(prov[2], prov[3])
+        try: v = writer._call(prov[1], os.environ[key], m, msg)
+        except Exception as e:
+            print('    photo check:', key, str(e)[:100], flush=True)
+            if '404' in str(e) and key not in _SEEN:          # that vision model is gone: find one this key can use
+                _SEEN.add(key); alt = _vision_model(prov[1], os.environ[key])
+                if alt:
+                    VISION[[k for k, _ in VISION].index(key)] = (key, alt)
+                    try: v = writer._call(prov[1], os.environ[key], alt, msg)
+                    except Exception: continue
+                else: continue
+            else: continue
         bad = v.get('graphic') or v.get('fits') is False or v.get('mostly_text') or (sensitive and v.get('private_person'))
         print(f"    photo check: {'REJECTED' if bad else 'ok'} ({v.get('why', '')})", flush=True)
         return not bad

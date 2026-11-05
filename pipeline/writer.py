@@ -88,7 +88,9 @@ RULES
 - Pick exactly 4 stories from the candidates: the most important for an international audience of professionals,
   varied topics and regions (at most 2 stories about the same country or the same conflict; cover at least 3 world regions when the candidates allow), each tied to a real place. Prefer world events, geopolitics and conflict, business and markets,
   economy, tech and AI, science, climate. AVOID: local crime and court cases about private people, minor local or
-  state-level elections, celebrity gossip, sports results, opinion pieces.
+  state-level elections, celebrity gossip, sports results, opinion pieces, local accidents with few casualties (a collapsed roof,
+  a road crash), stories about one little-known person unless it matters internationally. A story that matters to people in
+  many countries beats a local incident even if the local one is newer.
 - question: male host, 2-7 words, natural and varied, e.g. "What happened in Spain?", "And in Belgrade?", "What about Yemen?".
 - answer: female anchor, 2 short sentences, 18-26 words (hard limit), ONLY facts stated in that article's text. No outside knowledge,
   no guesses, no added numbers. Do NOT name any news outlet (the source credit is added automatically).
