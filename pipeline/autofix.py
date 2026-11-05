@@ -20,7 +20,7 @@ def facts_ok(story, text):
         import writer
         a = arts[S['stories'][story]['article_id']]
         v, _ = writer.chat([{'role': 'system', 'content': writer.CHECK},
-                            {'role': 'user', 'content': json.dumps([{'story': 1, 'article': a['title'] + '. ' + a['body'], 'answer': text}], ensure_ascii=False)}])
+                            {'role': 'user', 'content': json.dumps([{'story': 1, 'outlet': a.get('source', ''), 'article': a['title'] + '. ' + a['body'], 'answer': text}], ensure_ascii=False)}])
         return bool(v.get('ok'))
     except Exception: return False
 

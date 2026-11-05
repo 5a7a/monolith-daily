@@ -57,7 +57,9 @@ Return JSON:
  "hashtags":["5 specific hashtags, no #reels/#explore"]}"""
 
 CHECK = """You are a strict fact checker. For each story, list every factual claim in its answer (numbers, names, places, causes,
-who said what). Each claim must be directly supported by THAT story's article text. Return JSON
+who said what). Each claim must be directly supported by THAT story's article text. Naming the story's own outlet as the
+source ("according to <outlet>", "<outlet> has the details", "<outlet> reports") is always allowed, even if the article text
+doesn't contain the outlet's name. Numbers written as words are the same as digits. Return JSON
 {"ok": true|false, "problems": ["story N: claim - why unsupported", ...]}."""
 
 def write(cands):
@@ -69,7 +71,7 @@ def write(cands):
         s, used = chat(msgs); last = validate(s, cands)
         if not last:
             byid = {a['id']: a for a in cands}
-            pack = [{'story': n + 1, 'article': byid[x['article_id']]['title'] + '. ' + byid[x['article_id']]['body'], 'answer': x['answer']} for n, x in enumerate(s['stories'])]
+            pack = [{'story': n + 1, 'outlet': byid[x['article_id']]['source'], 'article': byid[x['article_id']]['title'] + '. ' + byid[x['article_id']]['body'], 'answer': x['answer']} for n, x in enumerate(s['stories'])]
             fc, _ = chat([{'role': 'system', 'content': CHECK}, {'role': 'user', 'content': json.dumps(pack, ensure_ascii=False)}], skip=used if attempt == 0 else None)
             if fc.get('ok'): return s
             last = fc.get('problems') or ['fact check failed']
