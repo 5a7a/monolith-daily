@@ -86,7 +86,8 @@ RULES
   no guesses, no added numbers. Do NOT name any news outlet (the source credit is added automatically).
 - Write every number as spoken words ("thirty-one", "six point three billion dollars"). No digits anywhere in question/answer.
 - Calm, serious tone for deaths and war. Never: website names, "link in bio", prices, "startup", "launch", "free trial".
-- chips: 2-3 on-screen fact labels per story, CAPS, max 18 characters, e.g. ["31 KILLED","thirty-one"], ["TALKS RESUME","talks"].
+- topic: one of WORLD, CONFLICT, POLITICS, DIPLOMACY, BUSINESS, ECONOMY, TECH, SCIENCE, CLIMATE, HEALTH, DEFENCE, ENERGY.
+- chips: 2-3 on-screen fact labels per story, any number in a chip must be the same number the answer says, CAPS, max 18 characters, e.g. ["31 KILLED","thirty-one"], ["TALKS RESUME","talks"].
   Second item = the word in the answer where the chip pops. Chips with numbers start with the digits.
 - place: WHERE THE EVENT HAPPENS according to the article ("CITY, COUNTRY" or "REGION, COUNTRY", caps, max 22 chars), never
   the outlet's home country. A WHO decision -> "GENEVA, SWITZERLAND"; an outbreak in Congo -> "DR CONGO". lat/lon = that place.
@@ -95,7 +96,7 @@ RULES
 - keys: 1-3 words from the answer to highlight (numbers and the key noun).\n- image_prompt: one sentence describing a simple symbolic scene for the story (objects and setting only, no real people, no text).
 Return JSON:
 {"stories":[{"article_id":"<id>","question":"...","answer":"...","place":"...","lat":0.0,"lon":0.0,
-  "chips":[["LABEL","word"]],"rundown":"...","keys":["..."],"image_prompt":"..."}, ... 4 items],
+  "topic":"...","chips":[["LABEL","word"]],"rundown":"...","keys":["..."],"image_prompt":"..."}, ... 4 items],
  "caption":"Instagram caption: first line with the key search words, one short line per story, then 'Send this to someone who needs to know.'",
  "hashtags":["5 specific hashtags, no #reels/#explore"]}"""
 
@@ -161,6 +162,18 @@ def spoken_outlet(src):
         if k in low: return v
     return re.sub(r'\s+(World|International|Tech|Technology|Business|Middle East|Europe|Asia|Africa|Americas|Politics|Health|Science|Top Stories|News Feed)$', '', src or '').strip()
 
+ONES = 'zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen'.split()
+TENS = 'twenty thirty forty fifty sixty seventy eighty ninety'.split()
+def _words(n):   # 42 -> 'forty two'
+    if n < 20: return ONES[n]
+    if n < 100: return TENS[n // 10 - 2] + ('' if n % 10 == 0 else ' ' + ONES[n % 10])
+    if n < 1000: return ONES[n // 100] + ' hundred' + ('' if n % 100 == 0 else ' ' + _words(n % 100))
+    return _words(n // 1000) + ' thousand' + ('' if n % 1000 == 0 else ' ' + _words(n % 1000))
+
+def _says(text, n):   # does the text say this exact number in words? ('forty' must not match 'forty two')
+    t = ' ' + re.sub(r'[^a-z ]', ' ', text.lower().replace('-', ' ')) + ' '
+    return bool(re.search(r' ' + _words(n) + r' (?!(?:' + '|'.join(ONES[1:10]) + r'|hundred|thousand) )', re.sub(r'\s+', ' ', t)))
+
 def _country(x):   # 'ZAPORIZHZHIA, UKRAINE' -> 'UKRAINE'; rundown 'UKRAINE · ...' as a fallback
     return (str(x.get('place', '')).split(',')[-1] or str(x.get('rundown', '')).split('·')[0]).strip().upper()
 
@@ -191,6 +204,10 @@ def validate(s, cands):
             if not x['answer'].rstrip().endswith(('.', '!', '?')): p.append(f'story {n}: the answer must end with a full sentence')
             if not 15 <= len(x["answer"].split()) <= 30: p.append(f'story {n}: answer must be 20-30 words, it has {len(x["answer"].split())}')
             if not (-90 <= float(x['lat']) <= 90 and -180 <= float(x['lon']) <= 180): p.append(f'story {n}: bad coordinates')
+            for c in x['chips']:
+                for num in re.findall(r'\d[\d,]*', str(c[0])):
+                    n_ = int(num.replace(',', ''))
+                    if n_ < 1000000 and not _says(x['answer'], n_): p.append(f"story {n}: chip '{c[0]}' says {n_} but the answer doesn't say {_words(n_)}")
             if not 1 <= len(x['chips']) <= 3 or any(len(c[0]) > 20 for c in x['chips']): p.append(f'story {n}: 2-3 chips of max 18 chars')
 
     except Exception as e: p.append(f'bad JSON structure: {e}')

@@ -87,12 +87,14 @@ for i, st in enumerate(S['stories']):
         if not img and 'AI' not in skip:                                                                        # 4. AI illustration (labelled)
             img = photos.illustrate(st.get('image_prompt') or a['title'], dst); src = 'AI' if img else None; ai = bool(img)
     photo_src[str(i)] = {'src': src, 'ai': ai}
-    topic = re.sub(r'[^A-Za-z ]', '', a.get('topic') or 'WORLD').strip().upper() or 'WORLD'
+    topic = re.sub(r'[^A-Za-z ]', '', st.get('topic') or a.get('topic') or 'WORLD').strip().upper() or 'WORLD'   # the writer's label; the feed's can be wrong
+    dom = lambda u: re.sub(r'^www\.', '', (u or '').split('/')[2]) if '//' in (u or '') else ''
+    photo_by = dom(src).upper()[:24] if img and not ai and src and dom(src) != dom(a['url']) else ''
     stories.append({'img': img, 'outlet': a['source'].upper()[:22], 'grade': a['trust'], 'topic': topic,
                     'pub': dt.datetime.fromisoformat(a['pubDate'].replace('Z', '+00:00')).strftime('%H:%M UTC'),
                     'headline': a['title'], 'note': ('ALSO REPORTED BY  ' + '  ·  '.join(r.upper() for r in rel[:2])) if rel else f"SOURCE  {a['source'].upper()}",
                     'loc': [float(st['lat']), float(st['lon'])], 'place': st['place'].upper(), 'chips': st['chips'][:3], 'rundown': st['rundown'].upper(),
-                    'url': a['url'], 'ai_image': ai})
+                    'url': a['url'], 'ai_image': ai, 'photo_by': photo_by})
     keys += st.get('keys', []) + [re.sub(r'[^0-9]', '', c[0]) for c in st['chips'] if re.search(r'\d', c[0])]
 json.dump(photo_src, open(os.path.join(out, 'photo_src.json'), 'w'))
 log('photos', sum(1 for s in stories if s['img']), 'of', len(stories))

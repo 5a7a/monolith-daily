@@ -207,9 +207,19 @@ def draw_slab(d, cx, cy, h, a=1.0, bg=BG):
     d.rectangle((cx - w * 0.07, cy - h * 0.34, cx + w * 0.07, cy + h * 0.34), fill=mix(bg, OXH, a))
 
 # ------------------------------------------------------------------ captions
+def n_lines(ws):   # how many caption lines these words take (same layout as draw_caption)
+    male = ws[0]['spk'] == 'male'; font = F('i6' if male else 'i8', 56 if male else 68)
+    n, cw, sp = 1, 0, font.getlength(' ')
+    for x in ws:
+        wl = font.getlength(x['w'])
+        if cw + wl > 880 and cw: n += 1; cw = 0
+        cw += wl + sp
+    return n
+
 def chunks():
     out = []; cur = []
     for i, x in enumerate(WORDS):
+        if cur and n_lines(cur + [x]) > 2: out.append(cur); cur = []   # never a third line: it would run into the headline below
         cur.append(x)
         nx = WORDS[i + 1] if i + 1 < len(WORDS) else None
         endp = x['w'].endswith(('.', '?', '!')) or (x['w'].endswith(',') and len(cur) >= 3)
@@ -346,13 +356,14 @@ def draw_photo(img, s, t, p, ts):
     if p > 0.6:
         a = clamp((p - 0.6) / 0.4)
         d = ImageDraw.Draw(img)
-        f = F('m7', 22); label = s['outlet']
-        w = f.getlength(label) + 34
+        f = F('m7', 22); label = ('PHOTO  ' + s['photo_by']) if s.get('photo_by') else s['outlet']   # photo from another outlet: credit that one
+        w = f.getlength(label) + 34 - (58 if s.get('photo_by') else 0)
         rrect(d, (x0 + 18, y0 + 18, x0 + 18 + w + 54, y0 + 62), 10, fill=mix(CARD, BG, 1) if a > .5 else CARD, outline=hx('2A4558'))
         text(d, (x0 + 18 + 17, y0 + 40), label, f, TXT, a, BG, anchor='lm', track=1)
         gx = x0 + 18 + w + 4
-        rrect(d, (gx, y0 + 24, gx + 44, y0 + 56), 7, fill=mix(BG, GRN, 0.9))
-        text(d, (gx + 22, y0 + 41), s['grade'], F('m7', 21), (2, 11, 18), 1, GRN, anchor='mm')
+        if not s.get('photo_by'):
+            rrect(d, (gx, y0 + 24, gx + 44, y0 + 56), 7, fill=mix(BG, GRN, 0.9))
+            text(d, (gx + 22, y0 + 41), s['grade'], F('m7', 21), (2, 11, 18), 1, GRN, anchor='mm')
         if s.get('ai_image'):   # never pass a generated picture off as a news photo
             lab = 'AI ILLUSTRATION'; lw = F('m7', 20).getlength(lab) + 30
             rrect(d, (x1 - 18 - lw, y0 + 18, x1 - 18, y0 + 58), 10, fill=CARD, outline=OXH)
