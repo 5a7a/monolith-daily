@@ -137,6 +137,12 @@ def write(cands, tries=5, covered=()):
             print('  writer: format problems ->', probs, flush=True)
             last = 'Fix these problems and return the full JSON again:\n' + '\n'.join(probs)
         else:
+            nprob = [f"story {n + 1}: the answer says {v}, but that number is not in the article"
+                     for n, x in enumerate(s['stories']) for v in _numbers(x['answer'])
+                     if not _in_article(v, byid[x['article_id']]['title'] + ' ' + _lead(byid[x['article_id']]['body']))]
+            if nprob:                                    # every number has to come from the article: checked in code, not by an AI
+                print('  writer: numbers ->', nprob, flush=True); last = ('Fix these: ' + '; '.join(nprob) +
+                    '. Use only numbers stated in the article text. Return the full JSON again.'); msgs.append({'role': 'assistant', 'content': json.dumps(s, ensure_ascii=False)}); continue
             pack = [{'story': n + 1, 'outlet': byid[x['article_id']]['source'], 'article': byid[x['article_id']]['title'] + '. ' + _lead(byid[x['article_id']]['body']),
                      'question': x['question'], 'answer': x['answer'], 'place': x['place']} for n, x in enumerate(s['stories'])]
             cm = [{'role': 'system', 'content': CHECK}, {'role': 'user', 'content': json.dumps(pack, ensure_ascii=False)}]
@@ -183,6 +189,31 @@ def _words(n):   # 42 -> 'forty two'
 def _says(text, n):   # does the text say this exact number in words? ('forty' must not match 'forty two')
     t = ' ' + re.sub(r'[^a-z ]', ' ', text.lower().replace('-', ' ')) + ' '
     return bool(re.search(r' ' + _words(n) + r' (?!(?:' + '|'.join(ONES[1:10]) + r'|hundred|thousand) )', re.sub(r'\s+', ' ', t)))
+
+VAL = {w: i for i, w in enumerate(ONES)} | {w: 20 + 10 * i for i, w in enumerate(TENS)}
+def _numbers(text):
+    """Numbers a line says in words, as they'd be written: 'forty-two' -> '42', 'one thousand six hundred' -> '1600',
+    'sixteen point seven billion' -> '16.7'. Single small numbers (one..ten) are skipped: 'one of the deadliest'."""
+    t = re.sub(r'[^a-z ]', ' ', text.lower().replace('-', ' ')).split() + ['.']; out = []; cur = tot = 0; dec = ''; on = False; n_words = 0
+    for w in t:
+        if w in VAL and on and dec == '' and cur in (19, 20) and tot == 0 and n_words == 1 and VAL[w] >= 10: cur = cur * 100 + VAL[w]; n_words += 1   # 'twenty twenty-six' = 2026
+        elif w in VAL and dec == '': cur += VAL[w]; on = True; n_words += 1
+        elif w in VAL and on and dec != '': dec += str(VAL[w]); n_words += 1
+        elif w == 'hundred' and on: cur = max(cur, 1) * 100; n_words += 1
+        elif w == 'thousand' and on: tot += max(cur, 1) * 1000; cur = 0; n_words += 1
+        elif w == 'point' and on: dec = '.'
+        elif w in ('million', 'billion', 'trillion') and on: n_words += 1; v = str(tot + cur) + (dec if len(dec) > 1 else ''); out.append(v); cur = tot = 0; dec = ''; on = False; n_words = 0
+        elif on:
+            v = tot + cur
+            if v > 10 or n_words > 1: out.append(str(v) + (dec if len(dec) > 1 else ''))
+            cur = tot = 0; dec = ''; on = False; n_words = 0
+    return out
+def _in_article(v, art):
+    a = art.replace(',', ''); low = ' ' + re.sub(r'[^a-z ]', ' ', art.lower().replace('-', ' ')) + ' '
+    if re.search(r'(?<![\d.])' + re.escape(v) + r'(?![\d])', a): return True
+    if '.' not in v and int(v) < 1000000 and (' ' + _words(int(v)) + ' ') in re.sub(r'\s+', ' ', low): return True
+    if v.endswith('00') and re.search(r'(?<![\d.])' + re.escape(str(int(v) / 1000).rstrip('0').rstrip('.')) + r'\s*(k|thousand)\b', a, re.I): return True
+    return False
 
 def _country(x):   # 'ZAPORIZHZHIA, UKRAINE' -> 'UKRAINE'; rundown 'UKRAINE · ...' as a fallback
     return (str(x.get('place', '')).split(',')[-1] or str(x.get('rundown', '')).split('·')[0]).strip().upper()

@@ -1,6 +1,6 @@
 # Story photo = the article's own share image (og:image), shown with the outlet's name and grade on it.
 # Falls back to another outlet covering the same story, then to a plain source card drawn by the renderer.
-import re, html, urllib.request, io
+import os, re, html, urllib.request, io
 from PIL import Image
 UA = {'User-Agent': 'Mozilla/5.0 (compatible; MonolithBriefing/1.0)', 'Accept-Language': 'en'}
 KNOWN = {}   # article url -> its image url, when the feed or the search already told us
@@ -14,7 +14,7 @@ def og_image(url):
         m = re.search(pat, page, re.I)
         if m: return html.unescape(m.group(1))
     return None
-def fetch(urls, out, skip=()):
+def fetch(urls, out, skip=(), check=None):
     for u in urls:
         if u in skip: continue
         img = og_image(u)
@@ -22,9 +22,36 @@ def fetch(urls, out, skip=()):
         try:
             data = urllib.request.urlopen(urllib.request.Request(img, headers=UA), timeout=20).read(15_000_000)
             im = Image.open(io.BytesIO(data)).convert('RGB')
-            if im.width >= 600 and im.height >= 300: im.save(out, quality=92); return out, u
+            if im.width >= 600 and im.height >= 300:
+                im.save(out, quality=92)
+                if check and not check(out): os.remove(out); continue   # the AI looked at it and said no: try the next photo
+                return out, u
         except Exception: continue
     return None, None
+
+VISION = [('GEMINI_API_KEY', None), ('GROQ_API_KEY', 'meta-llama/llama-4-scout-17b-16e-instruct'), ('OPENROUTER_API_KEY', 'google/gemma-3-27b-it:free')]
+def screen(path, headline, sensitive=False):
+    """An AI looks at the photo before it's used. False = don't use it: graphic (bodies, body bags, blood, injuries),
+    doesn't fit the story (logo, placeholder, unrelated), mostly text, or an identifiable private person in a sensitive story.
+    If no AI can look right now, the photo is kept (the video check still sees it)."""
+    import base64, json, writer
+    im = Image.open(path); im.thumbnail((768, 768)); b = io.BytesIO(); im.convert('RGB').save(b, 'JPEG', quality=80)
+    msg = [{'role': 'user', 'content': [
+        {'type': 'text', 'text': f'News story headline: "{headline}". Look at this photo that would illustrate it in a news video on Instagram. '
+                                 'Answer JSON {"graphic": bool, "fits": bool, "mostly_text": bool, "private_person": bool, "why": "few words"}. '
+                                 'graphic = shows dead bodies, body bags, corpses, blood or visible injuries. fits = plausibly shows this story '
+                                 '(place, people, event or subject), not a logo, placeholder, chart or unrelated stock image. mostly_text = mainly '
+                                 'words/graphics. private_person = an identifiable ordinary (non-public) person is the main subject.'},
+        {'type': 'image_url', 'image_url': {'url': 'data:image/jpeg;base64,' + base64.b64encode(b.getvalue()).decode()}}]}]
+    for key, model in VISION:
+        prov = next((p for p in writer.PROVIDERS if p[0] == key), None)
+        if not prov or not os.environ.get(key): continue
+        try: v = writer._call(prov[1], os.environ[key], model or os.environ.get(prov[2], prov[3]), msg)
+        except Exception as e: print('    photo check:', key, str(e)[:100], flush=True); continue
+        bad = v.get('graphic') or v.get('fits') is False or v.get('mostly_text') or (sensitive and v.get('private_person'))
+        print(f"    photo check: {'REJECTED' if bad else 'ok'} ({v.get('why', '')})", flush=True)
+        return not bad
+    return True
 
 def search_other_outlets(title, n=12):
     """Other outlets covering the same story (GDELT news search: free, no key). Returns their article URLs, best first."""

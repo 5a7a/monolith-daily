@@ -8,7 +8,11 @@ def whole_sentences(t):   # the feed cuts bodies mid-word ("long-range strate");
 URL = 'https://api.monolith.news/api/feed'
 GOOD = {'A', 'A-', 'B+'}
 def candidates(max_age_h=12, n=14):
-    d = json.load(urllib.request.urlopen(urllib.request.Request(URL, headers={'User-Agent': 'monolith-daily'}), timeout=30))
+    for attempt in range(4):   # the feed can be briefly down: try for about 3 minutes
+        try: d = json.load(urllib.request.urlopen(urllib.request.Request(URL, headers={'User-Agent': 'monolith-daily'}), timeout=30)); break
+        except Exception as e:
+            if attempt == 3: raise RuntimeError(f'Monolith feed unreachable: {e}')
+            time.sleep(45)
     now = dt.datetime.now(dt.timezone.utc); seen = set(); out = []
     for a in d['articles']:
         try: age = (now - dt.datetime.fromisoformat(a['pubDate'].replace('Z', '+00:00'))).total_seconds() / 3600
