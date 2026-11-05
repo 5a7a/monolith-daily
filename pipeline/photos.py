@@ -29,7 +29,7 @@ def fetch(urls, out, skip=(), check=None):
         except Exception: continue
     return None, None
 
-VISION = [('GEMINI_API_KEY', None), ('GROQ_API_KEY', 'meta-llama/llama-4-scout-17b-16e-instruct'), ('OPENROUTER_API_KEY', 'google/gemma-3-27b-it:free')]
+VISION = [('GEMINI_API_KEY', None), ('GROQ_API_KEY', 'meta-llama/llama-4-scout-17b-16e-instruct'), ('OPENROUTER_API_KEY', 'google/gemma-4-31b-it:free')]
 def screen(path, headline, sensitive=False):
     """An AI looks at the photo before it's used. False = don't use it: graphic (bodies, body bags, blood, injuries),
     doesn't fit the story (logo, placeholder, unrelated), mostly text, or an identifiable private person in a sensitive story.

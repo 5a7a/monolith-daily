@@ -5,14 +5,14 @@ PROVIDERS = [  # (env key, base url, model env, default model)
     ('GROQ_API_KEY', 'https://api.groq.com/openai/v1', 'GROQ_MODEL', 'openai/gpt-oss-120b'),
     ('CF_AI_TOKEN', f"https://api.cloudflare.com/client/v4/accounts/{os.environ.get('CF_ACCOUNT_ID', '')}/ai/v1", 'CF_MODEL', '@cf/openai/gpt-oss-120b'),   # same free Cloudflare account as the illustrations
     ('CEREBRAS_API_KEY', 'https://api.cerebras.ai/v1', 'CEREBRAS_MODEL', 'llama-3.3-70b'),
-    ('OPENROUTER_API_KEY', 'https://openrouter.ai/api/v1', 'OPENROUTER_MODEL', 'openai/gpt-oss-120b:free'),
+    ('OPENROUTER_API_KEY', 'https://openrouter.ai/api/v1', 'OPENROUTER_MODEL', 'nvidia/nemotron-3-ultra-550b-a55b:free'),
 ]
 BANNED = re.compile(r'\b(startup|launch(?:ed|ing)?|free trial|pro plan|monolith\.news|link in bio|subscribe|\$\d)', re.I)
 N_STORIES = 4
 
 UA = 'monolith-daily/1.0 (+https://github.com/5a7a/monolith-daily)'   # some APIs block the default Python user agent
-FALLBACK = {'GEMINI_API_KEY': ['gemini-3.5-flash-lite'], 'CF_AI_TOKEN': ['@cf/meta/llama-3.3-70b-instruct-fp8-fast']}                    # tried when the main model is overloaded
-PREFER = ['gpt-oss-120b', 'kimi-k2', 'llama-4-maverick', 'qwen3-235b', 'llama-3.3-70b', 'qwen3-32b', 'gpt-oss-20b', 'llama']   # best first
+FALLBACK = {'GEMINI_API_KEY': ['gemini-3.5-flash-lite'], 'OPENROUTER_API_KEY': ['google/gemma-4-31b-it:free'], 'CF_AI_TOKEN': ['@cf/meta/llama-3.3-70b-instruct-fp8-fast']}                    # tried when the main model is overloaded
+PREFER = ['gpt-oss-120b', 'kimi-k2', 'nemotron-3-ultra', 'llama-4-maverick', 'qwen3-235b', 'gemma-4-31b', 'llama-3.3-70b', 'qwen3-32b', 'gpt-oss-20b', 'llama']   # best first
 
 def _available(base, key):
     try:
@@ -128,7 +128,7 @@ def write(cands, tries=5, covered=()):
     last, fails = None, {}
     for attempt in range(tries):
         if last: msgs.append({'role': 'user', 'content': last})
-        s, used = chat(msgs)
+        s, used = chat(msgs[:2] + msgs[-2:] if len(msgs) > 4 else msgs)   # only the latest draft + feedback: keeps requests small
         for x in s.get('stories', []):                    # label lengths are fixed in code, at a word break
             x['article_id'] = str(x.get('article_id', '')).strip()
             x['place'], x['rundown'] = _trim(str(x.get('place', '')), 22), _trim(str(x.get('rundown', '')), 40)
@@ -136,6 +136,10 @@ def write(cands, tries=5, covered=()):
         if probs:
             print('  writer: format problems ->', probs, flush=True)
             last = 'Fix these problems and return the full JSON again:\n' + '\n'.join(probs)
+            for i in {int(n) - 1 for q in probs for n in re.findall(r'story (\d)', q)}:
+                if i < len(s.get('stories', [])):
+                    aid = s['stories'][i].get('article_id'); fails[aid] = fails.get(aid, 0) + 1
+                    if fails[aid] >= 2: last += f'\nStory {i + 1} keeps failing: replace it with a different candidate (not {aid}).'
         else:
             nprob = [f"story {n + 1}: the answer says {v}, but that number is not in the article"
                      for n, x in enumerate(s['stories']) for v in _numbers(x['answer'])
@@ -239,7 +243,8 @@ def validate(s, cands):
             if x['article_id'] not in ids: p.append(f"story {n}: unknown article_id")
             for f in ('question', 'answer'):
                 if re.search(r'\d', x[f]): p.append(f'story {n}: write numbers as words in the {f}')
-                if BANNED.search(x[f]): p.append(f'story {n}: banned phrase in the {f}')
+                m = BANNED.search(x[f])
+                if m: p.append(f'story {n}: the {f} uses the banned word "{m.group(0)}" - rephrase without it (e.g. "fired", "started", "opened", "unveiled")')
             if not 2 <= len(x['question'].split()) <= 8: p.append(f'story {n}: question must be 2-7 words')
             if sum(1 for y in st if _country(y) == _country(x)) > 2: p.append(f'story {n}: more than 2 stories from {_country(x)} - swap one for a different region')
             if not x['answer'].rstrip().endswith(('.', '!', '?')): p.append(f'story {n}: the answer must end with a full sentence')
