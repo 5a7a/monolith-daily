@@ -64,8 +64,11 @@ def chat(messages, skip=None, passes=2):
                     except urllib.error.HTTPError as e:
                         detail = e.read().decode('utf-8', 'ignore')[:200].replace('\n', ' ')
                         err.append(f'{key} {model}: HTTP {e.code} {detail}'); print(f'    ai: {model} HTTP {e.code} after {time.time() - t0:.0f}s', flush=True)
-                        if e.code == 429:                                   # per-minute limit: wait it out
-                            m = re.search(r'try again in ([\d.]+)s', detail); time.sleep(min(65, float(m.group(1)) + 2) if m else 30 * (attempt + 1)); continue
+                        if e.code == 429:                                   # limit hit: a short per-minute wait is worth it, a used-up quota is not
+                            m = re.search(r'try again in ([\d.]+)s', detail)
+                            if m and float(m.group(1)) <= 20: time.sleep(float(m.group(1)) + 2); continue
+                            if p == 0: break
+                            time.sleep(30); continue
                         if e.code in (500, 502, 503, 504):                 # busy: first time round move straight on to the next AI
                             if p == 0: break
                             time.sleep(15 * (attempt + 1)); continue
@@ -92,7 +95,7 @@ RULES
 - Write every number as spoken words ("thirty-one", "six point three billion dollars"). No digits anywhere in question/answer.
 - Calm, serious tone for deaths and war. Never: website names, "link in bio", prices, "startup", "launch", "free trial".
 - topic: one of WORLD, CONFLICT, POLITICS, DIPLOMACY, BUSINESS, ECONOMY, TECH, SCIENCE, CLIMATE, HEALTH, DEFENCE, ENERGY.
-- chips: 2-3 on-screen fact labels per story, any number in a chip must be the same number the answer says, CAPS, max 18 characters, e.g. ["31 KILLED","thirty-one"], ["TALKS RESUME","talks"].
+- chips: 2-3 on-screen fact labels per story, written with digits (e.g. 42 KILLED); a number in a chip must be the same number the answer says, CAPS, max 18 characters, e.g. ["31 KILLED","thirty-one"], ["TALKS RESUME","talks"].
   Second item = the word in the answer where the chip pops. Chips with numbers start with the digits.
 - place: WHERE THE EVENT HAPPENS according to the article ("CITY, COUNTRY" or "REGION, COUNTRY", caps, max 22 chars), never
   the outlet's home country. A WHO decision -> "GENEVA, SWITZERLAND"; an outbreak in Congo -> "DR CONGO". lat/lon = that place.
@@ -213,7 +216,7 @@ def validate(s, cands):
                 for num in re.findall(r'\d[\d,]*', str(c[0])):
                     n_ = int(num.replace(',', ''))
                     if n_ < 1000000 and not _says(x['answer'], n_): p.append(f"story {n}: chip '{c[0]}' says {n_} but the answer doesn't say {_words(n_)}")
-            if not 1 <= len(x['chips']) <= 3 or any(len(c[0]) > 20 for c in x['chips']): p.append(f'story {n}: 2-3 chips of max 18 chars')
+            if not 2 <= len(x['chips']) <= 3 or any(len(c[0]) > 20 for c in x['chips']): p.append(f'story {n}: 2-3 chips of max 18 chars')
 
     except Exception as e: p.append(f'bad JSON structure: {e}')
     return p
