@@ -16,6 +16,6 @@ def candidates(max_age_h=12, n=14):
         key = ' '.join(a['title'].lower().split()[:5])
         if age > max_age_h or a.get('trust') not in GOOD or len(a.get('body') or '') < 80 or key in seen: continue
         seen.add(key); a = {**a, 'body': whole_sentences(a.get('body'))}
-        out.append({k: a.get(k) for k in ('id', 'source', 'trust', 'title', 'body', 'pubDate', 'topic', 'countries', 'url', 'alertScore')})
+        out.append({k: a.get(k) for k in ('id', 'source', 'trust', 'title', 'body', 'pubDate', 'topic', 'countries', 'url', 'alertScore', 'image')})
     out.sort(key=lambda a: a['pubDate'], reverse=True); out.sort(key=lambda a: -(a.get('alertScore') or 0))   # most urgent, then newest
     return out[:n]

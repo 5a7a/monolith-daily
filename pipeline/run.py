@@ -73,6 +73,7 @@ def related(a):
         if b['id'] != a['id'] and b['source'] != a['source'] and len(me & sig(b['title'])) >= 3 and b['source'] not in outl: outl.append(b['source'])
     return outl
 stories, keys, photo_src = [], [], {}
+photos.KNOWN.update({b['url']: b['image'] for b in cands + S.get('_articles', []) if b.get('image')})   # the feed's own cover photos come first
 for i, st in enumerate(S['stories']):
     a = byid[st['article_id']]; rel = related(a)
     dst = os.path.join(out, f'photo_{i}.jpg'); ai = False; skip = set(FX.get('skip_urls', {}).get(str(i), []))

@@ -9,11 +9,13 @@ jobs:
       - run: pip install -q pillow
       - run: |
           cd pipeline && python -c "
-          import photos, urllib.request
-          for u in ['https://www.france24.com/en/video/20261105-zelensky-in-spain-for-talks-with-world-leaders-as-kyiv-seeks-to-strengthen-air-defences']:
-              print('og_image:', photos.og_image(u))
-              try:
-                  r = urllib.request.urlopen(urllib.request.Request(u, headers={'User-Agent': 'Mozilla/5.0'}), timeout=20); print('status', r.status, len(r.read()))
-              except Exception as e: print('fetch error:', e)
-          print('gdelt:', photos.search_other_outlets('Zelensky in Spain for talks with world leaders as Kyiv seeks to strengthen air defences')[:5])
+          import photos, feed, urllib.request
+          c = feed.candidates(12, 20); ok = 0
+          for a in c[:8]:
+              photos.KNOWN.update({a['url']: a['image']} if a.get('image') else {})
+              img, src = photos.fetch([a['url']], '/tmp/p.jpg')
+              print('FEED-IMG', bool(a.get('image')), 'GOT' if img else 'none', a['source'][:20], (a.get('image') or '')[:70]); ok += bool(img)
+          print('feed photos', ok, 'of 8')
+          try: print('GDELT raw:', urllib.request.urlopen(urllib.request.Request('https://api.gdeltproject.org/api/v2/doc/doc?query=Zelensky%20Spain&mode=artlist&format=json&maxrecords=5&timespan=3d', headers=photos.UA), timeout=30).read(300))
+          except Exception as e: print('GDELT error:', e)
           "

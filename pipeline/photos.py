@@ -3,7 +3,9 @@
 import re, html, urllib.request, io
 from PIL import Image
 UA = {'User-Agent': 'Mozilla/5.0 (compatible; MonolithBriefing/1.0)', 'Accept-Language': 'en'}
+KNOWN = {}   # article url -> its image url, when the feed or the search already told us
 def og_image(url):
+    if KNOWN.get(url): return KNOWN[url]
     try:
         page = urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=20).read(600_000).decode('utf-8', 'ignore')
     except Exception: return None
@@ -32,6 +34,8 @@ def search_other_outlets(title, n=12):
     try:
         d = json.load(urllib.request.urlopen(urllib.request.Request(
             f'https://api.gdeltproject.org/api/v2/doc/doc?query={q}&mode=artlist&format=json&maxrecords={n}&timespan=3d&sort=hybridrel', headers=UA), timeout=30))
+        for a in d.get('articles', []):
+            if a.get('socialimage'): KNOWN[a['url']] = a['socialimage']
         return [a['url'] for a in d.get('articles', []) if a.get('socialimage')]
     except Exception: return []
 
