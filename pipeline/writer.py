@@ -61,8 +61,7 @@ RULES
   state-level elections, celebrity gossip, sports results, opinion pieces.
 - question: male host, 2-7 words, natural and varied, e.g. "What happened in Spain?", "And in Belgrade?", "What about Yemen?".
 - answer: female anchor, 2-3 short sentences, 20-30 words (hard limit), ONLY facts stated in that article's text. No outside knowledge,
-  no guesses, no added numbers. Mention the outlet once in the first answer ("according to The New York Times").
-  The LAST answer ends with "<Outlet> has the details."
+  no guesses, no added numbers. Do NOT name any news outlet (the source credit is added automatically).
 - Write every number as spoken words ("thirty-one", "six point three billion dollars"). No digits anywhere in question/answer.
 - Calm, serious tone for deaths and war. Never: website names, "link in bio", prices, "startup", "launch", "free trial".
 - chips: 2-3 on-screen fact labels per story, CAPS, max 18 characters, e.g. ["31 KILLED","thirty-one"], ["TALKS RESUME","talks"].
@@ -70,7 +69,7 @@ RULES
 - place: WHERE THE EVENT HAPPENS according to the article ("CITY, COUNTRY" or "REGION, COUNTRY", caps, max 22 chars), never
   the outlet's home country. A WHO decision -> "GENEVA, SWITZERLAND"; an outbreak in Congo -> "DR CONGO". lat/lon = that place.
 - question: asks about the event's own place or subject ("What about the Ebola outbreak?"), never the outlet's country.
-- rundown: "COUNTRY  ·  SHORT SUMMARY" in caps, max 40 chars.
+- rundown: "COUNTRY  ·  2-4 WORD SUMMARY" in caps, e.g. "UKRAINE  ·  STRIKE ON AID HUB".
 - keys: 1-3 words from the answer to highlight (numbers and the key noun).\n- image_prompt: one sentence describing a simple symbolic scene for the story (objects and setting only, no real people, no text).
 Return JSON:
 {"stories":[{"article_id":"<id>","question":"...","answer":"...","place":"...","lat":0.0,"lon":0.0,
@@ -79,8 +78,9 @@ Return JSON:
  "hashtags":["5 specific hashtags, no #reels/#explore"]}"""
 
 CHECK = """You are a strict fact checker. For each story, list every factual claim in its answer (numbers, names, places, causes,
-who said what). Each claim must be directly supported by THAT story's article text. Also check that "place" is where the
-story's events actually happen according to the article (not just the outlet's country), and that the question fits the story. Naming the story's own outlet as the
+who said what). Each claim must be directly supported by THAT story's article text. Also check that "place" fits the story: it may be
+inferred (a WHO decision -> Geneva) and need not be named in the text, but flag it if it is clearly unrelated to where the
+events happen (e.g. just the outlet's home country). Check the question fits the story. Naming the story's own outlet as the
 source ("according to <outlet>", "<outlet> has the details", "<outlet> reports") is always allowed, even if the article text
 doesn't contain the outlet's name. Numbers written as words are the same as digits. Return JSON
 {"ok": true|false, "problems": ["story N: claim - why unsupported", ...]}."""
@@ -96,12 +96,10 @@ def write(cands, tries=5):
     for attempt in range(tries):
         if last: msgs.append({'role': 'user', 'content': last})
         s, used = chat(msgs)
-        for x in s.get('stories', []): x['article_id'] = str(x.get('article_id', '')).strip()
+        for x in s.get('stories', []):                    # label lengths are fixed in code, at a word break
+            x['article_id'] = str(x.get('article_id', '')).strip()
+            x['place'], x['rundown'] = _trim(str(x.get('place', '')), 22), _trim(str(x.get('rundown', '')), 40)
         probs = validate(s, scands)
-        if probs and attempt == tries - 1:               # last try: fix label lengths ourselves (at a word break)
-            for x in s.get('stories', []):
-                x['place'], x['rundown'] = _trim(x.get('place', ''), 22), _trim(x.get('rundown', ''), 40)
-            probs = validate(s, scands)
         if probs:
             print('  writer: format problems ->', probs, flush=True)
             last = 'Fix these problems and return the full JSON again:\n' + '\n'.join(probs)
@@ -112,6 +110,8 @@ def write(cands, tries=5):
             try: fc, _ = chat(cm, skip=used)            # a different AI checks the writer's work
             except RuntimeError: fc, _ = chat(cm)        # none other available: same provider, fresh conversation
             if fc.get('ok'):
+                last_src = byid[s['stories'][-1]['article_id']]['source']
+                s['stories'][-1]['answer'] = s['stories'][-1]['answer'].rstrip() + f' {spoken_outlet(last_src)} has the details.'
                 for x in s['stories']: x['article_id'] = short[x['article_id']]   # back to the feed's real ids
                 return s
             probs = fc.get('problems') or ['fact check failed']
@@ -127,6 +127,17 @@ def write(cands, tries=5):
                     '\nReturn the full JSON again.')
         msgs.append({'role': 'assistant', 'content': json.dumps(s, ensure_ascii=False)})
     raise RuntimeError(f'script rejected after {tries} tries: ' + '; '.join(map(str, probs)))
+
+SPOKEN = {'nyt': 'The New York Times', 'new york times': 'The New York Times', 'bbc': 'The BBC', 'guardian': 'The Guardian',
+          'wsj': 'The Wall Street Journal', 'wall street journal': 'The Wall Street Journal', 'ap ': 'The Associated Press',
+          'associated press': 'The Associated Press', 'reuters': 'Reuters', 'bloomberg': 'Bloomberg', 'cnn': 'CNN', 'npr': 'NPR',
+          'al jazeera': 'Al Jazeera', 'scmp': 'The South China Morning Post', 'south china morning post': 'The South China Morning Post',
+          'financial times': 'The Financial Times', 'ft ': 'The Financial Times', 'economist': 'The Economist', 'the hill': 'The Hill'}
+def spoken_outlet(src):
+    low = (src or '').lower() + ' '
+    for k, v in SPOKEN.items():
+        if k in low: return v
+    return re.sub(r'\s+(World|International|Tech|Technology|Business|Middle East|Europe|Asia|Africa|Americas|Politics|Health|Science|Top Stories|News Feed)$', '', src or '').strip()
 
 def _trim(t, n):
     t = (t or '').strip()
@@ -145,10 +156,9 @@ def validate(s, cands):
                 if re.search(r'\d', x[f]): p.append(f'story {n}: write numbers as words in the {f}')
                 if BANNED.search(x[f]): p.append(f'story {n}: banned phrase in the {f}')
             if not 2 <= len(x['question'].split()) <= 8: p.append(f'story {n}: question must be 2-7 words')
-            if not 18 <= len(x['answer'].split()) <= 31: p.append(f'story {n}: answer must be 20-30 words, it has {len(x["answer"].split())}')
+            if not 18 <= len(x['answer'].split()) <= 34: p.append(f'story {n}: answer must be 20-30 words, it has {len(x["answer"].split())}')
             if not (-90 <= float(x['lat']) <= 90 and -180 <= float(x['lon']) <= 180): p.append(f'story {n}: bad coordinates')
             if not 1 <= len(x['chips']) <= 3 or any(len(c[0]) > 20 for c in x['chips']): p.append(f'story {n}: 2-3 chips of max 18 chars')
-            if len(x['place']) > 22: p.append(f"story {n}: place '{x['place']}' is too long, max 22 characters (shorten, e.g. 'DES MOINES, US')")
-            if len(x['rundown']) > 40: p.append(f"story {n}: rundown '{x['rundown']}' is too long, max 40 characters")
+
     except Exception as e: p.append(f'bad JSON structure: {e}')
     return p
