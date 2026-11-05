@@ -1,12 +1,12 @@
 # AI quality check of the FINISHED episode (Gemini watches and listens to the mp4; free tier, same GEMINI_API_KEY).
 # Writes review.json: {"ok": bool, "problems": [...], "checked": bool}. Auto-posting only happens when ok is true.
 # Usage: python pipeline/review.py OUTDIR
-import os, sys, json, time, re, urllib.request
+import os, sys, json, time, re, urllib.request, urllib.error
 KEY = os.environ.get('GEMINI_API_KEY'); MODEL = os.environ.get('REVIEW_MODEL', os.environ.get('GEMINI_MODEL', 'gemini-3.8-flash'))
 G = 'https://generativelanguage.googleapis.com'
 
 def req(url, data=None, headers=None, method=None, raw=False):
-    h = {'x-goog-api-key': KEY, **(headers or {})}
+    h = {'x-goog-api-key': KEY, 'User-Agent': 'monolith-daily/1.0', **(headers or {})}
     r = urllib.request.urlopen(urllib.request.Request(url, data, h, method=method), timeout=300)
     return r if raw else json.load(r)
 
@@ -27,10 +27,17 @@ def upload(path):
 def ask(fileinfo, prompt):
     body = {'contents': [{'parts': [{'file_data': {'mime_type': 'video/mp4', 'file_uri': fileinfo['uri']}}, {'text': prompt}]}],
             'generationConfig': {'responseMimeType': 'application/json', 'temperature': 0.1}}
-    try:
-        r = req(f'{G}/v1beta/models/{MODEL}:generateContent', json.dumps(body).encode(), {'Content-Type': 'application/json'})
-        txt = r['candidates'][0]['content']['parts'][0]['text']
-    except Exception:   # newer Interactions endpoint
+    txt = None
+    for model in (MODEL, 'gemini-3.5-flash-lite'):          # main model, then a lighter one if Google is overloaded
+        for attempt in range(3):
+            try:
+                r = req(f'{G}/v1beta/models/{model}:generateContent', json.dumps(body).encode(), {'Content-Type': 'application/json'})
+                txt = r['candidates'][0]['content']['parts'][0]['text']; break
+            except urllib.error.HTTPError as e:
+                if e.code in (429, 500, 502, 503, 504): time.sleep(20 * (attempt + 1)); continue
+                break
+        if txt: break
+    if not txt:   # newer Interactions endpoint
         body = {'model': MODEL, 'input': [{'type': 'video', 'uri': fileinfo['uri'], 'mime_type': 'video/mp4'}, {'type': 'text', 'text': prompt}]}
         txt = json.dumps(req(f'{G}/v1beta/interactions', json.dumps(body).encode(), {'Content-Type': 'application/json'}))
         txt = txt.encode().decode('unicode_escape', 'ignore')

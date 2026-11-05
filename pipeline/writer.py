@@ -9,17 +9,31 @@ PROVIDERS = [  # (env key, base url, model env, default model)
 BANNED = re.compile(r'\b(startup|launch(?:ed|ing)?|free trial|pro plan|monolith\.news|link in bio|subscribe|\$\d)', re.I)
 N_STORIES = 4
 
+UA = 'monolith-daily/1.0 (+https://github.com/5a7a/monolith-daily)'   # some APIs block the default Python user agent
+FALLBACK = {'GEMINI_API_KEY': ['gemini-3.5-flash-lite']}                    # tried when the main model is overloaded
+
+def _call(base, key, model, messages):
+    body = json.dumps({'model': model, 'messages': messages, 'temperature': 0.5, 'response_format': {'type': 'json_object'}}).encode()
+    req = urllib.request.Request(base + '/chat/completions', body, {'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json', 'User-Agent': UA})
+    r = json.load(urllib.request.urlopen(req, timeout=180)); txt = r['choices'][0]['message']['content']
+    return json.loads(txt[txt.find('{'): txt.rfind('}') + 1])
+
 def chat(messages, skip=None):
+    import time, urllib.error
     err = []
     for key, base, menv, mdef in PROVIDERS:
         if not os.environ.get(key) or key == skip: continue
-        body = json.dumps({'model': os.environ.get(menv, mdef), 'messages': messages, 'temperature': 0.5, 'response_format': {'type': 'json_object'}}).encode()
-        req = urllib.request.Request(base + '/chat/completions', body, {'Authorization': 'Bearer ' + os.environ[key], 'Content-Type': 'application/json'})
-        try:
-            r = json.load(urllib.request.urlopen(req, timeout=120)); txt = r['choices'][0]['message']['content']
-            return json.loads(txt[txt.find('{'): txt.rfind('}') + 1]), key
-        except Exception as e: err.append(f'{key}: {e}')
-    raise RuntimeError('no LLM provider worked: ' + ' | '.join(err))
+        for model in [os.environ.get(menv, mdef)] + FALLBACK.get(key, []):
+            for attempt in range(3):
+                try: return _call(base, os.environ[key], model, messages), key
+                except urllib.error.HTTPError as e:
+                    detail = e.read().decode('utf-8', 'ignore')[:200].replace('\n', ' ')
+                    err.append(f'{key} {model}: HTTP {e.code} {detail}')
+                    if e.code in (429, 500, 502, 503, 504): time.sleep(15 * (attempt + 1)); continue   # busy: wait and retry
+                    break                                                                              # bad key/model: next option
+                except Exception as e:
+                    err.append(f'{key} {model}: {e}'); time.sleep(5)
+    raise RuntimeError('no LLM provider worked: ' + ' | '.join(err[-6:]))
 
 SYSTEM = """You write the "Monolith Briefing", a ~55 second vertical news video. A male host asks one short question
 per story, a female anchor answers with the facts. The intro line and the outro are added automatically - don't write them.
