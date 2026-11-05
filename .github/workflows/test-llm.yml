@@ -1,0 +1,25 @@
+name: test-llm
+on: workflow_dispatch
+permissions: { contents: read }
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          CF_AI_TOKEN: ${{ secrets.CF_AI_TOKEN }}
+        run: |
+          cd pipeline && python -c "
+          import os, writer
+          msg = [{'role': 'user', 'content': 'Return JSON {\"ok\": true, \"capital_of_france\": \"...\"}'}]
+          for key, base, menv, mdef in writer.PROVIDERS:
+              if not os.environ.get(key): print(key, '-> not set'); continue
+              keep = writer.PROVIDERS; writer.PROVIDERS = [(key, base, menv, mdef)]
+              try: r, _ = writer.chat(msg, passes=1); print(key, '-> WORKS', r)
+              except Exception as e: print(key, '-> FAILED', str(e)[:300])
+              writer.PROVIDERS = keep
+          "
