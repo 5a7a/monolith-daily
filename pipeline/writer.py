@@ -63,7 +63,9 @@ def chat(messages, skip=None, passes=2):
                         err.append(f'{key} {model}: HTTP {e.code} {detail}')
                         if e.code == 429:                                   # per-minute limit: wait it out
                             m = re.search(r'try again in ([\d.]+)s', detail); time.sleep(min(65, float(m.group(1)) + 2) if m else 30 * (attempt + 1)); continue
-                        if e.code in (500, 502, 503, 504): time.sleep(15 * (attempt + 1)); continue   # busy: wait and retry
+                        if e.code in (500, 502, 503, 504):                 # busy: first time round move straight on to the next AI
+                            if p == 0: break
+                            time.sleep(15 * (attempt + 1)); continue
                         if e.code == 400 and strict: strict = False; continue          # its JSON mode choked or isn't supported: ask plainly
                         if e.code in (400, 404) and 'model' in detail.lower() and not models:              # model retired: ask what exists
                             alt = _available(base, os.environ[key]); models += [alt] if alt and alt not in tried else []
@@ -76,7 +78,7 @@ SYSTEM = """You write the "Monolith Briefing", a ~55 second vertical news video.
 per story, a female anchor answers with the facts. The intro line and the outro are added automatically - don't write them.
 RULES
 - Pick exactly 4 stories from the candidates: the most important for an international audience of professionals,
-  varied topics, each tied to a real place. Prefer world events, geopolitics and conflict, business and markets,
+  varied topics and regions (at most 2 stories about the same country or the same conflict; cover at least 3 world regions when the candidates allow), each tied to a real place. Prefer world events, geopolitics and conflict, business and markets,
   economy, tech and AI, science, climate. AVOID: local crime and court cases about private people, minor local or
   state-level elections, celebrity gossip, sports results, opinion pieces.
 - question: male host, 2-7 words, natural and varied, e.g. "What happened in Spain?", "And in Belgrade?", "What about Yemen?".
@@ -159,6 +161,9 @@ def spoken_outlet(src):
         if k in low: return v
     return re.sub(r'\s+(World|International|Tech|Technology|Business|Middle East|Europe|Asia|Africa|Americas|Politics|Health|Science|Top Stories|News Feed)$', '', src or '').strip()
 
+def _country(x):   # 'ZAPORIZHZHIA, UKRAINE' -> 'UKRAINE'; rundown 'UKRAINE · ...' as a fallback
+    return (str(x.get('place', '')).split(',')[-1] or str(x.get('rundown', '')).split('·')[0]).strip().upper()
+
 def _lead(t, n=600):   # first sentences of an article, up to ~n characters
     t = (t or '').strip()
     if len(t) <= n: return t
@@ -182,6 +187,7 @@ def validate(s, cands):
                 if re.search(r'\d', x[f]): p.append(f'story {n}: write numbers as words in the {f}')
                 if BANNED.search(x[f]): p.append(f'story {n}: banned phrase in the {f}')
             if not 2 <= len(x['question'].split()) <= 8: p.append(f'story {n}: question must be 2-7 words')
+            if sum(1 for y in st if _country(y) == _country(x)) > 2: p.append(f'story {n}: more than 2 stories from {_country(x)} - swap one for a different region')
             if not x['answer'].rstrip().endswith(('.', '!', '?')): p.append(f'story {n}: the answer must end with a full sentence')
             if not 15 <= len(x["answer"].split()) <= 30: p.append(f'story {n}: answer must be 20-30 words, it has {len(x["answer"].split())}')
             if not (-90 <= float(x['lat']) <= 90 and -180 <= float(x['lon']) <= 180): p.append(f'story {n}: bad coordinates')
