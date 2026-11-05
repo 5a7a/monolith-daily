@@ -13,9 +13,9 @@ def api(method, fields=None, files=None):
 def verdict(out):
     try: r = json.load(open(os.path.join(out, 'review.json')))
     except Exception: r = {'ok': False, 'checked': False, 'problems': [{'detail': 'no AI check result'}]}
-    mins = int(os.environ.get('AUTO_POST_MINUTES', '120'))
+    mins = int(os.environ.get('AUTO_POST_MINUTES', '30'))
     if r.get('ok'):
-        head = f"✅ AI check passed. Auto-posts in {mins // 60}h{mins % 60:02d} if you don't answer."
+        head = f"✅ AI check passed. Auto-posts in {f'{mins // 60}h{mins % 60:02d}' if mins >= 60 else f'{mins} min'} if you don't answer."
     else:
         head = "⚠️ AI check found problems, so this will NOT auto-post. Tap Publish yourself if it's fine."
     try: fixed = json.load(open(os.path.join(out, 'fixlog.json')))

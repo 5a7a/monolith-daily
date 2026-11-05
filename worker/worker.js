@@ -1,10 +1,10 @@
 // Cloudflare Worker (free plan)
 //  - Episode crons (3 a day): start an episode on GitHub Actions.
-//  - Every-10-minutes cron: auto-post any episode nobody answered within AUTO_POST_MINUTES, but only if the AI check passed.
+//  - Every-5-minutes cron: auto-post any episode nobody answered within AUTO_POST_MINUTES, but only if the AI check passed.
 //  - Telegram buttons: Publish / Redo / Reject.
 //  - POST /pending (from the GitHub run, with X-Pipe-Secret): remember an episode waiting for an answer (KV binding STATE).
-// Secrets: GH_TOKEN, TG_BOT_TOKEN, TG_SECRET, PIPE_SECRET. Vars: GH_REPO, TG_ADMIN_ID, AUTO_POST_MINUTES (default 120).
-const CHECK_CRON = '*/10 * * * *';
+// Secrets: GH_TOKEN, TG_BOT_TOKEN, TG_SECRET, PIPE_SECRET. Vars: GH_REPO, TG_ADMIN_ID, AUTO_POST_MINUTES (default 30).
+const CHECK_CRON = '*/5 * * * *';
 export default {
   async scheduled(event, env, ctx) {
     if (event.cron === CHECK_CRON) ctx.waitUntil(autoPost(env));
@@ -14,7 +14,7 @@ export default {
     const url = new URL(req.url);
     if (req.method === 'POST' && url.pathname === '/pending') {
       if (req.headers.get('X-Pipe-Secret') !== env.PIPE_SECRET) return new Response('forbidden', { status: 403 });
-      const p = await req.json(); const mins = Number(env.AUTO_POST_MINUTES || 120);
+      const p = await req.json(); const mins = Number(env.AUTO_POST_MINUTES || 30);
       await env.STATE.put('pending:' + p.run_id, JSON.stringify({ ...p, deadline: Date.now() + mins * 60000 }), { expirationTtl: 3 * 86400 });
       return new Response('ok');
     }

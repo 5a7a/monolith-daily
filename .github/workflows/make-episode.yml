@@ -59,7 +59,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with: { name: episode, path: out/, retention-days: 3 }
       - name: Send to Telegram for approval
-        env: { TG_BOT_TOKEN: '${{ secrets.TG_BOT_TOKEN }}', TG_CHAT_ID: '${{ secrets.TG_CHAT_ID }}', WORKER_URL: '${{ secrets.WORKER_URL }}', PIPE_SECRET: '${{ secrets.PIPE_SECRET }}', AUTO_POST_MINUTES: '120' }
+        env: { TG_BOT_TOKEN: '${{ secrets.TG_BOT_TOKEN }}', TG_CHAT_ID: '${{ secrets.TG_CHAT_ID }}', WORKER_URL: '${{ secrets.WORKER_URL }}', PIPE_SECRET: '${{ secrets.PIPE_SECRET }}', AUTO_POST_MINUTES: '30' }
         run: python pipeline/telegram.py review out ${{ github.run_id }}
       - name: Report failure
         if: failure() || cancelled()
