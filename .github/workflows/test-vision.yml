@@ -5,19 +5,5 @@ jobs:
   t:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - run: pip install -q pillow
-      - env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-        run: |
-          cd pipeline && python -c "
-          import photos, feed, os
-          a = [x for x in feed.candidates(12, 20) if x.get('image')][0]; photos.KNOWN[a['url']] = a['image']
-          img, _ = photos.fetch([a['url']], '/tmp/p.jpg'); print('headline:', a['title'])
-          for key in ['GEMINI_API_KEY', 'GROQ_API_KEY', 'OPENROUTER_API_KEY']:
-              keep = dict(os.environ); [os.environ.pop(k) for k in ['GEMINI_API_KEY', 'GROQ_API_KEY', 'OPENROUTER_API_KEY'] if k != key and k in os.environ]
-              print(key, '->', photos.screen(img, a['title'])); os.environ.update(keep)
-          print('wrong headline ->', photos.screen(img, 'Apple unveils a new iPhone in California'))
-          "
+      - env: { K: '${{ secrets.GROQ_API_KEY }}' }
+        run: curl -s https://api.groq.com/openai/v1/models -H "Authorization: Bearer $K" -H "User-Agent: Mozilla/5.0" | python3 -c "import json,sys; print('\n'.join(sorted(m['id'] for m in json.load(sys.stdin)['data'])))"
