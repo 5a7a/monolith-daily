@@ -62,21 +62,36 @@ source ("according to <outlet>", "<outlet> has the details", "<outlet> reports")
 doesn't contain the outlet's name. Numbers written as words are the same as digits. Return JSON
 {"ok": true|false, "problems": ["story N: claim - why unsupported", ...]}."""
 
-def write(cands):
+def write(cands, tries=5):
+    cands = [a for a in cands if len(a.get('body') or '') >= 150] or cands     # enough text to state real facts
     arts = [{k: a[k] for k in ('id', 'source', 'title', 'body', 'topic', 'countries')} for a in cands]
+    byid = {a['id']: a for a in cands}
     msgs = [{'role': 'system', 'content': SYSTEM}, {'role': 'user', 'content': 'CANDIDATES:\n' + json.dumps(arts, ensure_ascii=False)}]
-    last = None
-    for attempt in range(3):
-        if last: msgs.append({'role': 'user', 'content': 'Fix these problems and return the full JSON again:\n' + '\n'.join(last)})
-        s, used = chat(msgs); last = validate(s, cands)
-        if not last:
-            byid = {a['id']: a for a in cands}
-            pack = [{'story': n + 1, 'outlet': byid[x['article_id']]['source'], 'article': byid[x['article_id']]['title'] + '. ' + byid[x['article_id']]['body'], 'answer': x['answer']} for n, x in enumerate(s['stories'])]
-            fc, _ = chat([{'role': 'system', 'content': CHECK}, {'role': 'user', 'content': json.dumps(pack, ensure_ascii=False)}], skip=used if attempt == 0 else None)
+    last, fails = None, {}
+    for attempt in range(tries):
+        if last: msgs.append({'role': 'user', 'content': last})
+        s, used = chat(msgs); probs = validate(s, cands)
+        if probs:
+            print('  writer: format problems ->', probs, flush=True)
+            last = 'Fix these problems and return the full JSON again:\n' + '\n'.join(probs)
+        else:
+            pack = [{'story': n + 1, 'outlet': byid[x['article_id']]['source'], 'article': byid[x['article_id']]['title'] + '. ' + byid[x['article_id']]['body'],
+                     'answer': x['answer']} for n, x in enumerate(s['stories'])]
+            fc, _ = chat([{'role': 'system', 'content': CHECK}, {'role': 'user', 'content': json.dumps(pack, ensure_ascii=False)}], skip=used)
             if fc.get('ok'): return s
-            last = fc.get('problems') or ['fact check failed']
+            probs = fc.get('problems') or ['fact check failed']
+            print('  writer: fact check ->', probs, flush=True)
+            bad = sorted({int(n) - 1 for p in probs for n in re.findall(r'story\s*(\d)', str(p), re.I) if 0 < int(n) <= len(s['stories'])})
+            swap = []
+            for i in bad:
+                aid = s['stories'][i]['article_id']; fails[aid] = fails.get(aid, 0) + 1
+                if fails[aid] >= 2: swap.append(i + 1)
+            last = ('The fact checker rejected these claims:\n' + '\n'.join(map(str, probs)) +
+                    '\nRewrite ONLY the stories named, using only facts stated word-for-word in their article text. Delete any claim that is not in the text; do not replace it with new information. Keep the other stories exactly the same.' +
+                    (f"\nStories {swap} failed twice: replace them with different candidates that have clear, concrete facts. Do not use these article ids again: {[k for k, v in fails.items() if v >= 2]}." if swap else '') +
+                    '\nReturn the full JSON again.')
         msgs.append({'role': 'assistant', 'content': json.dumps(s, ensure_ascii=False)})
-    raise RuntimeError('script rejected after 3 tries: ' + '; '.join(last))
+    raise RuntimeError(f'script rejected after {tries} tries: ' + '; '.join(map(str, probs)))
 
 def validate(s, cands):
     p = []; ids = {a['id'] for a in cands}
