@@ -55,9 +55,12 @@ def chat(messages, skip=None):
 SYSTEM = """You write the "Monolith Briefing", a ~55 second vertical news video. A male host asks one short question
 per story, a female anchor answers with the facts. The intro line and the outro are added automatically - don't write them.
 RULES
-- Pick exactly 4 stories from the candidates: the most important, varied topics, each tied to a real place.
+- Pick exactly 4 stories from the candidates: the most important for an international audience of professionals,
+  varied topics, each tied to a real place. Prefer world events, geopolitics and conflict, business and markets,
+  economy, tech and AI, science, climate. AVOID: local crime and court cases about private people, minor local or
+  state-level elections, celebrity gossip, sports results, opinion pieces.
 - question: male host, 2-7 words, natural and varied, e.g. "What happened in Spain?", "And in Belgrade?", "What about Yemen?".
-- answer: female anchor, 2-3 short sentences, 22-32 words, ONLY facts stated in that article's text. No outside knowledge,
+- answer: female anchor, 2-3 short sentences, 20-30 words (hard limit), ONLY facts stated in that article's text. No outside knowledge,
   no guesses, no added numbers. Mention the outlet once in the first answer ("according to The New York Times").
   The LAST answer ends with "<Outlet> has the details."
 - Write every number as spoken words ("thirty-one", "six point three billion dollars"). No digits anywhere in question/answer.
@@ -90,11 +93,12 @@ def write(cands, tries=5):
     for attempt in range(tries):
         if last: msgs.append({'role': 'user', 'content': last})
         s, used = chat(msgs)
-        for x in s.get('stories', []):                    # trim labels instead of rejecting the whole script
-            if isinstance(x.get('place'), str): x['place'] = x['place'][:24]
-            if isinstance(x.get('rundown'), str): x['rundown'] = x['rundown'][:44]
-            x['article_id'] = str(x.get('article_id', '')).strip()
+        for x in s.get('stories', []): x['article_id'] = str(x.get('article_id', '')).strip()
         probs = validate(s, scands)
+        if probs and attempt == tries - 1:               # last try: fix label lengths ourselves (at a word break)
+            for x in s.get('stories', []):
+                x['place'], x['rundown'] = _trim(x.get('place', ''), 22), _trim(x.get('rundown', ''), 40)
+            probs = validate(s, scands)
         if probs:
             print('  writer: format problems ->', probs, flush=True)
             last = 'Fix these problems and return the full JSON again:\n' + '\n'.join(probs)
@@ -121,6 +125,12 @@ def write(cands, tries=5):
         msgs.append({'role': 'assistant', 'content': json.dumps(s, ensure_ascii=False)})
     raise RuntimeError(f'script rejected after {tries} tries: ' + '; '.join(map(str, probs)))
 
+def _trim(t, n):
+    t = (t or '').strip()
+    if len(t) <= n: return t
+    cut = t[:n + 1].rsplit(' ', 1)[0].rstrip(' ·,-')
+    return cut if len(cut) >= n // 2 else t[:n]
+
 def validate(s, cands):
     p = []; ids = {a['id'] for a in cands}
     try:
@@ -132,9 +142,10 @@ def validate(s, cands):
                 if re.search(r'\d', x[f]): p.append(f'story {n}: write numbers as words in the {f}')
                 if BANNED.search(x[f]): p.append(f'story {n}: banned phrase in the {f}')
             if not 2 <= len(x['question'].split()) <= 8: p.append(f'story {n}: question must be 2-7 words')
-            if not 16 <= len(x['answer'].split()) <= 36: p.append(f'story {n}: answer must be 22-32 words')
+            if not 18 <= len(x['answer'].split()) <= 31: p.append(f'story {n}: answer must be 20-30 words, it has {len(x["answer"].split())}')
             if not (-90 <= float(x['lat']) <= 90 and -180 <= float(x['lon']) <= 180): p.append(f'story {n}: bad coordinates')
             if not 1 <= len(x['chips']) <= 3 or any(len(c[0]) > 20 for c in x['chips']): p.append(f'story {n}: 2-3 chips of max 18 chars')
-            if len(x['place']) > 24 or len(x['rundown']) > 44: p.append(f'story {n}: place max 22 chars, rundown max 40')
+            if len(x['place']) > 22: p.append(f"story {n}: place '{x['place']}' is too long, max 22 characters (shorten, e.g. 'DES MOINES, US')")
+            if len(x['rundown']) > 40: p.append(f"story {n}: rundown '{x['rundown']}' is too long, max 40 characters")
     except Exception as e: p.append(f'bad JSON structure: {e}')
     return p

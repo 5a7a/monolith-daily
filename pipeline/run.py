@@ -77,10 +77,12 @@ for i, st in enumerate(S['stories']):
     a = byid[st['article_id']]; rel = related(a)
     dst = os.path.join(out, f'photo_{i}.jpg'); ai = False; skip = set(FX.get('skip_urls', {}).get(str(i), []))
     prev = json.load(open(os.path.join(out, 'photo_src.json'))).get(str(i)) if os.path.exists(os.path.join(out, 'photo_src.json')) else None
+    sensitive = bool(re.search(r'crime|court|law|trial|murder|police', (a.get('topic') or '') + ' ' + a['title'], re.I))
+    if sensitive: skip |= {u for u in [a['url']] + [b['url'] for b in cands]}   # crime/court stories: never a real person's photo
     if prev and prev['src'] not in skip and os.path.exists(dst): img, src, ai = dst, prev['src'], prev['ai']   # keep a photo that passed
     else:
         img, src = photos.fetch([a['url']] + [b['url'] for b in cands if b['source'] in rel], dst, skip)        # 1. the outlet, 2. feed outlets on the same story
-        if not img: img, src = photos.fetch(photos.search_other_outlets(a['title']), dst, skip)                 # 3. any other outlet's cover photo
+        if not img and not sensitive: img, src = photos.fetch(photos.search_other_outlets(a['title']), dst, skip)  # 3. any other outlet's cover photo
         if not img and 'AI' not in skip:                                                                        # 4. AI illustration (labelled)
             img = photos.illustrate(st.get('image_prompt') or a['title'], dst); src = 'AI' if img else None; ai = bool(img)
     photo_src[str(i)] = {'src': src, 'ai': ai}

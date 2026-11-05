@@ -49,8 +49,9 @@ Watch AND listen to the whole video carefully. Male host asks, female anchor ans
 said and shown. Report only real mistakes a viewer would notice:
 - AUDIO: a word mispronounced badly enough to confuse (especially names/places), garbled or skipped words, a line cut off,
   speech that doesn't match the script, voices overlapping, clipping/distortion, silence gaps, music drowning the voice.
-- VISUAL: typos, text overlapping or cut off, captions not matching what is said, a broken/blank/black frame, a photo that
-  is unrelated to its story or is graphic/gory/inappropriate, a map pin clearly in the wrong place, glitches.
+- VISUAL: typos, text overlapping or cut off (including words cut mid-word), captions not matching what is said, a broken/blank/black
+  frame, a photo that is unrelated to its story or is graphic/gory/inappropriate, a photo showing an identifiable private person
+  in a crime, court or death story (always major: could be a victim or wrongly identified), a map pin clearly in the wrong place, glitches.
 - FACTS: anything on screen or spoken that contradicts the script or the article facts given below.
 Ignore matters of taste (style, voice choice, music choice). Minor = noticeable but harmless; major = misleading,
 embarrassing, or clearly broken. ok must be false if there is ANY major problem.
