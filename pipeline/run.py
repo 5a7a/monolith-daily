@@ -93,7 +93,8 @@ for i, st in enumerate(S['stories']):
     photo_by = dom(src).upper()[:24] if img and not ai and src and dom(src) != dom(a['url']) else ''
     stories.append({'img': img, 'outlet': a['source'].upper()[:22], 'grade': a['trust'], 'topic': topic,
                     'pub': dt.datetime.fromisoformat(a['pubDate'].replace('Z', '+00:00')).strftime('%H:%M UTC'),
-                    'headline': a['title'], 'note': ('ALSO REPORTED BY  ' + '  ·  '.join(r.upper() for r in rel[:2])) if rel else f"SOURCE  {a['source'].upper()}",
+                    'headline': re.sub(r'^[A-Z][A-Za-z]*\+:\s*', '', a['title']),   # drop paywall tags like 'STAT+:'
+                    'note': ('ALSO REPORTED BY  ' + '  ·  '.join(r.upper() for r in rel[:2])) if rel else f"SOURCE  {a['source'].upper()}",
                     'loc': [float(st['lat']), float(st['lon'])], 'place': st['place'].upper(), 'chips': st['chips'][:3], 'rundown': st['rundown'].upper(),
                     'url': a['url'], 'ai_image': ai, 'photo_by': photo_by})
     keys += st.get('keys', []) + [re.sub(r'[^0-9]', '', c[0]) for c in st['chips'] if re.search(r'\d', c[0])]
