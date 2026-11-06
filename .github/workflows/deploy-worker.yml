@@ -76,7 +76,7 @@ jobs:
         run: |
           git config user.name "monolith-bot"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add worker/url.txt
-          git diff --cached --quiet || { git commit -qm "Worker address" && git pull --rebase -q && git push -q; }
+          git diff --cached --quiet || { git commit -qm "Worker address" && git pull --rebase --autostash -q && git push -q; }
       - name: Tell Telegram
         if: always() && env.CLOUDFLARE_API_TOKEN != ''
         run: |
