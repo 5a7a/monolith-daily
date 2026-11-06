@@ -8,14 +8,24 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - name: Instagram connected yet?
+        env: { IG_TOKEN: '${{ secrets.IG_TOKEN }}', TG_BOT_TOKEN: '${{ secrets.TG_BOT_TOKEN }}', TG_CHAT_ID: '${{ secrets.TG_CHAT_ID }}' }
+        run: |
+          if [ -z "$IG_TOKEN" ]; then
+            curl -sS "https://api.telegram.org/bot$TG_BOT_TOKEN/sendMessage" -d chat_id="$TG_CHAT_ID" --data-urlencode text="ℹ️ Would have posted now, but Instagram isn't connected yet. Nothing was posted." >/dev/null
+            echo "SKIP=1" >> $GITHUB_ENV
+          fi
+      - if: env.SKIP != '1'
+        uses: actions/checkout@v4
+      - if: env.SKIP != '1'
+        uses: actions/download-artifact@v4
         with: { name: episode, path: out, run-id: '${{ github.event.client_payload.run_id }}', github-token: '${{ secrets.GITHUB_TOKEN }}' }
       - name: Post the Reel
+        if: env.SKIP != '1'
         env: { IG_TOKEN: '${{ secrets.IG_TOKEN }}', IG_USER_ID: '${{ secrets.IG_USER_ID }}' }
         run: python pipeline/instagram.py out
       - name: Remember the stories it covered (so the next episodes don't repeat them)
-        if: success()
+        if: success() && env.SKIP != '1'
         run: |
           python - <<'PY'
           import json, datetime as dt
@@ -27,7 +37,7 @@ jobs:
           git config user.name "monolith-bot"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           for i in 1 2 3; do git add pipeline/history.json && git commit -qm "Covered stories" ; git pull --rebase -q && git push -q && break; sleep 10; done
       - name: Confirm
-        if: always()
+        if: always() && env.SKIP != '1'
         env: { TG_BOT_TOKEN: '${{ secrets.TG_BOT_TOKEN }}', TG_CHAT_ID: '${{ secrets.TG_CHAT_ID }}' }
         run: |
           python pipeline/telegram.py say "${{ job.status == 'success' && 'Posted ✅' || 'Posting failed ❌ check the publish run in GitHub Actions' }} $(cat out/published.txt 2>/dev/null)"
