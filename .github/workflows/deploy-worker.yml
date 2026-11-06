@@ -65,8 +65,9 @@ jobs:
           echo; curl -sS "https://api.telegram.org/bot$TG_BOT_TOKEN/getWebhookInfo" | python3 -c "import json,sys; r=json.load(sys.stdin)['result']; print('webhook:', r.get('url'), '| last error:', r.get('last_error_message'))"
       - name: Check it answers (and refuses strangers)
         run: |
-          sleep 10
-          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$URL/pending" -d '{}')
+          for i in $(seq 1 24); do   # a brand-new workers.dev address can take a minute or two to go live
+            code=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$URL/pending" -d '{}'); [ "$code" != "404" ] && break; sleep 10
+          done
           echo "stranger -> $code"; [ "$code" = "403" ] || { echo "::error::Worker didn't answer as expected ($code)"; exit 1; }
           pipe=$(printf '%s' "$TG_BOT_TOKEN:pipe" | sha256sum | cut -c1-40)
           code=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$URL/pending" -H "X-Pipe-Secret: $pipe" -H 'Content-Type: application/json' -d '{"test":true}')
