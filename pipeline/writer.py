@@ -182,7 +182,8 @@ def spoken_outlet(src):
     low = (src or '').lower() + ' '
     for k, v in SPOKEN.items():
         if k in low: return v
-    return re.sub(r'\s+(World|International|Tech|Technology|Business|Middle East|Europe|Asia|Africa|Americas|Politics|Health|Science|Top Stories|News Feed)$', '', src or '').strip()
+    name = re.sub(r'\s+(World|International|Tech|Technology|Business|Middle East|Europe|Asia|Africa|Americas|Politics|Health|Science|Top Stories|News Feed)$', '', src or '').strip()
+    return re.sub(r'\.(org|com|net|io|co)\b', r' dot \1', name)   # 'Phys.org' is said 'Phys dot org'
 
 ONES = 'zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen'.split()
 TENS = 'twenty thirty forty fifty sixty seventy eighty ninety'.split()

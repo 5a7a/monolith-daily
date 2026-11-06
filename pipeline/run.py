@@ -166,11 +166,12 @@ for i, st in enumerate(S['stories']):
     prev = json.load(open(os.path.join(out, 'photo_src.json'))).get(str(i)) if os.path.exists(os.path.join(out, 'photo_src.json')) else None
     sensitive = bool(re.search(r'crime|law', a.get('topic') or '', re.I) or re.search(
         r'\b(murder\w*|manslaughter|killing of|court|convicted|sentenced|jury|police|arrested|stabbing|rape|assault|accused|shooting|shot|gunm[ae]n|massacre|terror\w*|victims?|died|dies|dead|killed|attack\w*)\b', a['title'], re.I))
-    if sensitive: skip |= {u for u in [a['url']] + [b['url'] for b in cands]}   # crime/court stories: never a real person's photo
     if prev and prev['src'] not in skip and os.path.exists(dst): img, src, ai = dst, prev['src'], prev['ai']   # keep a photo that passed
     else:
         grim = sensitive or bool(re.search(r'\b(shooting|shot|gunm[ae]n|massacre|terror\w*|victims?|died|dies|dead|killed|attack\w*)\b', a['title'], re.I))
-        ok = lambda p, a=a, grim=grim: photos.screen(p, a['title'], grim)   # in death/attack stories a private person's photo is refused                          # an AI looks at each photo first
+        def ok(p, a=a, grim=grim):   # in crime/death/attack stories a private person's photo is refused, and if no AI can look, no photo
+            r = photos.screen(p, a['title'], grim)
+            return r is True or (r is None and not grim)                          # an AI looks at each photo first
         img, src = photos.fetch([a['url']] + [b['url'] for b in cands if b['source'] in rel], dst, skip, ok)    # 1. the outlet, 2. feed outlets on the same story
         if not img and not sensitive: img, src = photos.fetch(photos.search_other_outlets(a['title']), dst, skip, ok)  # 3. any other outlet's cover photo
         if not img and 'AI' not in skip:                                                                        # 4. AI illustration (labelled)

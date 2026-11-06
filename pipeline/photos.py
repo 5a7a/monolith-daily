@@ -76,8 +76,8 @@ def screen(path, headline, sensitive=False, _again=True):
         return not bad
     if _again:                                    # all busy right now (rate limits): one more try in 20 seconds
         import time; time.sleep(20); return screen(path, headline, sensitive, False)
-    print('    photo check: no AI free to look; keeping the photo (the video check still sees it)', flush=True)
-    return True
+    print('    photo check: no AI free to look', flush=True)
+    return None   # caller decides: keep it for ordinary stories, refuse it for sensitive ones
 
 def search_other_outlets(title, n=12):
     """Other outlets covering the same story (GDELT news search: free, no key). Returns their article URLs, best first."""
