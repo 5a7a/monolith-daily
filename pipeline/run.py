@@ -43,10 +43,10 @@ byid = {a['id']: a for a in cands}
 FX = json.load(open(sys.argv[sys.argv.index('--fixes') + 1])) if '--fixes' in sys.argv else {}
 S['_articles'] = [byid[s['article_id']] for s in S['stories']]   # keep the article texts with the script (re-runs, fixes)
 json.dump(S, open(os.path.join(out, 'script.json'), 'w'), ensure_ascii=False, indent=1); log('script ok')
-if '--script' not in sys.argv:   # remember what this episode covers (kept 48h)
-    keep = [h for h in hist if dt.datetime.fromisoformat(h['t']) > cut - dt.timedelta(hours=24)]
-    keep += [{'t': dt.datetime.now(dt.timezone.utc).isoformat(timespec='seconds'), 'title': byid[x['article_id']]['title'], 'place': x.get('place', '')} for x in S['stories']]
-    json.dump(keep, open(HIST, 'w'), ensure_ascii=False, indent=1)
+# what this episode covers: added to pipeline/history.json only once it is actually posted (publish.yml),
+# so test runs and rejected episodes don't use up stories
+json.dump([{'t': dt.datetime.now(dt.timezone.utc).isoformat(timespec='seconds'), 'title': byid[x['article_id']]['title'], 'place': x.get('place', '')}
+           for x in S['stories']], open(os.path.join(out, 'covered.json'), 'w'), ensure_ascii=False, indent=1)
 json.dump([{k: byid[s['article_id']].get(k) for k in ('id', 'source', 'title', 'body', 'url')} for s in S['stories']], open(os.path.join(out, 'articles.json'), 'w'), ensure_ascii=False)
 
 # ---- date / slot (Istanbul time) and the spoken intro

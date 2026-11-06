@@ -75,9 +75,9 @@ jobs:
       - name: Remember pronunciations and covered stories
         if: always()
         run: |
-          if ! git diff --quiet pipeline/learned_say.json pipeline/pronunciations.json pipeline/history.json; then
+          if ! git diff --quiet pipeline/learned_say.json pipeline/pronunciations.json; then
             git config user.name "monolith-bot"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add pipeline/learned_say.json pipeline/pronunciations.json pipeline/history.json && git commit -m "Remember pronunciations and covered stories" && git pull --rebase -q && git push
+            git add pipeline/learned_say.json pipeline/pronunciations.json && git commit -m "Remember pronunciations and covered stories" && git pull --rebase -q && git push
           fi
       - uses: actions/upload-artifact@v4
         with:

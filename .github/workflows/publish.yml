@@ -1,7 +1,7 @@
 name: publish
 on:
   repository_dispatch: { types: [publish] }   # fired by the Telegram "Publish" button (client_payload.run_id)
-permissions: { actions: read, contents: read }
+permissions: { actions: read, contents: write }
 concurrency: { group: 'publish-${{ github.event.client_payload.run_id }}', cancel-in-progress: false }   # one at a time per episode
 jobs:
   publish:
@@ -14,6 +14,18 @@ jobs:
       - name: Post the Reel
         env: { IG_TOKEN: '${{ secrets.IG_TOKEN }}', IG_USER_ID: '${{ secrets.IG_USER_ID }}' }
         run: python pipeline/instagram.py out
+      - name: Remember the stories it covered (so the next episodes don't repeat them)
+        if: success()
+        run: |
+          python - <<'PY'
+          import json, datetime as dt
+          h = json.load(open('pipeline/history.json')); new = json.load(open('out/covered.json'))
+          cut = dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=48)
+          h = [x for x in h if dt.datetime.fromisoformat(x['t']) > cut] + [x for x in new if x['title'] not in {y['title'] for y in h}]
+          json.dump(h, open('pipeline/history.json', 'w'), ensure_ascii=False, indent=1)
+          PY
+          git config user.name "monolith-bot"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for i in 1 2 3; do git add pipeline/history.json && git commit -qm "Covered stories" ; git pull --rebase -q && git push -q && break; sleep 10; done
       - name: Confirm
         if: always()
         env: { TG_BOT_TOKEN: '${{ secrets.TG_BOT_TOKEN }}', TG_CHAT_ID: '${{ secrets.TG_CHAT_ID }}' }

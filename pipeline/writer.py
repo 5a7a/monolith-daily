@@ -118,7 +118,7 @@ source ("according to <outlet>", "<outlet> has the details", "<outlet> reports")
 doesn't contain the outlet's name. Numbers written as words are the same as digits. Return JSON
 {"ok": true|false, "problems": ["story N: claim - why unsupported", ...]}."""
 
-def write(cands, tries=5, covered=()):
+def write(cands, tries=8, covered=()):
     cands = ([a for a in cands if len(a.get('body') or '') >= 150] or cands)[:10]     # enough text to state real facts; 10 keeps the request small
     short = {f'a{i + 1}': a['id'] for i, a in enumerate(cands)}; real2short = {v: k for k, v in short.items()}
     arts = [{'id': real2short[a['id']], 'source': a['source'], 'title': a['title'], 'body': _lead(a['body']), 'topic': a['topic']} for a in cands]
@@ -171,7 +171,7 @@ def write(cands, tries=5, covered=()):
                     (f"\nStories {swap} failed twice: replace them with different candidates that have clear, concrete facts. Do not use these article ids again: {[k for k, v in fails.items() if v >= 2]}." if swap else '') +
                     '\nReturn the full JSON again.')
         msgs.append({'role': 'assistant', 'content': json.dumps(s, ensure_ascii=False)})
-    raise RuntimeError(f'script rejected after {tries} tries: ' + '; '.join(map(str, probs)))
+    raise RuntimeError(f'script rejected after {tries} tries: ' + (last or '; '.join(map(str, probs))))
 
 SPOKEN = {'nyt': 'The New York Times', 'new york times': 'The New York Times', 'bbc': 'The BBC', 'guardian': 'The Guardian',
           'wsj': 'The Wall Street Journal', 'wall street journal': 'The Wall Street Journal', 'ap ': 'The Associated Press',
