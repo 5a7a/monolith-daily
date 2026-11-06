@@ -9,6 +9,12 @@ def log(*a): print(f'[{time.time() - T:6.1f}s]', *a, flush=True)
 import feed
 cands = feed.candidates(max_age_h=12, n=20)
 if len(cands) < 8: cands = feed.candidates(max_age_h=24, n=20)       # slow news hours: look back a whole day
+LOCAL = re.compile(r'\b(bus|truck|lorry|car|van|road|motorway|highway|train)\b.{0,40}\b(crash\w*|collid\w*|collision|accident|overturn\w*)\b|'
+                   r'\b(crash\w*|collision|accident)\b.{0,40}\b(bus|truck|car|road|motorway|highway)\b|\broof\b.{0,20}\bcollaps|'
+                   r'\bshot dead\b|\bgunmen\b|\bstabb\w*|\bbears?\b|\b(grizzly|shark|dog) attack|\bmurder\w*|\bhouse fire\b|\bdrown\w*', re.I)
+def big_toll(t): return any(int(n) >= 20 for n in re.findall(r'\b(\d{2,4})\s+(?:people\s+)?(?:killed|dead|die|died)|\bkill\w*\s+(?:at least\s+)?(\d{2,4})', t or '') for n in n if n)
+keep_c = [a for a in cands if not LOCAL.search(a['title']) or big_toll(a['title'])]
+if len(keep_c) >= 6: cands = keep_c                                  # local accidents and local crime are not world news
 
 # ---- stories covered in the last 24h (pipeline/history.json, committed after every episode): don't repeat them
 HIST = os.path.join(HERE, 'history.json')
@@ -81,6 +87,17 @@ def ask_pron(name, heard, engine):   # the AI writes how to say a name: IPA for 
     v, _ = writer.chat([{'role': 'user', 'content': q}])
     return str(v.get('ipa') or v.get('say') or '').strip().strip('/')
 
+def said_right(name, heard):   # speech-to-text often spells a correctly said name as a common word: Kashmir -> "cashmere"
+    import writer
+    try:
+        v, _ = writer.chat([{'role': 'user', 'content':
+            f'A text-to-speech voice read the name "{name}" in an English news sentence. A speech-to-text model wrote what it heard as '
+            f'"{heard}". Is that consistent with the name being pronounced correctly (its usual English news pronunciation) - for example '
+            f'a homophone or a normal spelling of the same sounds? A missing or extra syllable, wrong vowels or different sounds mean false. '
+            f'Return JSON {{"correct": true or false, "why": "few words"}}.'}])
+        log('  sounds check', f'"{name}" vs "{heard}": {v.get("correct")} ({v.get("why", "")})'); return v.get('correct') is True
+    except Exception: return False
+
 name_flags = []; learned_now = []
 MANUAL = set(json.load(open(os.path.join(HERE, 'pronunciations.json')))) | set(voices.LEARNED)   # as they were before this episode
 for i, (who, txt, _) in enumerate(lines):
@@ -88,7 +105,8 @@ for i, (who, txt, _) in enumerate(lines):
     if not wrong: continue
     eng = voices.CFG[who]['engine']
     for name, heard in wrong:
-        log('name said wrong', f'line {i}: "{name}" heard as "{heard}"')
+        log('name said wrong?', f'line {i}: "{name}" heard as "{heard}"')
+        if said_right(name, heard): continue                # just spelled differently: nothing to fix
         fixed = False
         for attempt in range(2):                      # 1: the AI's pronunciation, 2: ask again
             try: how = ask_pron(name, heard, eng)
@@ -98,7 +116,8 @@ for i, (who, txt, _) in enumerate(lines):
             if eng == 'kokoro': voices.PRON[name] = how
             else: voices.LEARNED[name] = how
             voices.synth(lines, out, only=[i]); w1, _ = timing.words([files[i]], [lines[i]])
-            if name not in [n for n, _ in timing.name_check(txt, w1[0]['heard'], files[i])]:
+            still = dict(timing.name_check(txt, w1[0]['heard'], files[i]))
+            if name not in still or said_right(name, still[name]):
                 W[i] = w1[0]; fixed = True; log('  fixed with', how)
                 if name in MANUAL: pass                                    # a pronunciation set by hand is never overwritten
                 elif eng == 'kokoro': voices.save_pron(name, how); learned_now.append(f'{name} ({"female" if eng == "kokoro" else "male"} voice)')
@@ -141,11 +160,12 @@ for i, st in enumerate(S['stories']):
     dst = os.path.join(out, f'photo_{i}.jpg'); ai = False; skip = set(FX.get('skip_urls', {}).get(str(i), []))
     prev = json.load(open(os.path.join(out, 'photo_src.json'))).get(str(i)) if os.path.exists(os.path.join(out, 'photo_src.json')) else None
     sensitive = bool(re.search(r'crime|law', a.get('topic') or '', re.I) or re.search(
-        r'\b(murder\w*|manslaughter|killing of|court|convicted|sentenced|jury|police|arrested|stabbing|rape|assault|accused)\b', a['title'], re.I))
+        r'\b(murder\w*|manslaughter|killing of|court|convicted|sentenced|jury|police|arrested|stabbing|rape|assault|accused|shooting|shot|gunm[ae]n|massacre|terror\w*|victims?|died|dies|dead|killed|attack\w*)\b', a['title'], re.I))
     if sensitive: skip |= {u for u in [a['url']] + [b['url'] for b in cands]}   # crime/court stories: never a real person's photo
     if prev and prev['src'] not in skip and os.path.exists(dst): img, src, ai = dst, prev['src'], prev['ai']   # keep a photo that passed
     else:
-        ok = lambda p, a=a, sensitive=sensitive: photos.screen(p, a['title'], sensitive)                          # an AI looks at each photo first
+        grim = sensitive or bool(re.search(r'\b(shooting|shot|gunm[ae]n|massacre|terror\w*|victims?|died|dies|dead|killed|attack\w*)\b', a['title'], re.I))
+        ok = lambda p, a=a, grim=grim: photos.screen(p, a['title'], grim)   # in death/attack stories a private person's photo is refused                          # an AI looks at each photo first
         img, src = photos.fetch([a['url']] + [b['url'] for b in cands if b['source'] in rel], dst, skip, ok)    # 1. the outlet, 2. feed outlets on the same story
         if not img and not sensitive: img, src = photos.fetch(photos.search_other_outlets(a['title']), dst, skip, ok)  # 3. any other outlet's cover photo
         if not img and 'AI' not in skip:                                                                        # 4. AI illustration (labelled)
