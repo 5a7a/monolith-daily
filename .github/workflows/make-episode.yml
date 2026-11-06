@@ -53,7 +53,7 @@ jobs:
           CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
-          CF_AI_TOKEN: ${{ secrets.CF_AI_TOKEN }}
+          CF_AI_TOKEN: ${{ secrets.CF_AI_TOKEN || secrets.CF_API_TOKEN }}
         run: python pipeline/run.py out
       - name: AI check + automatic fixes (up to 4 rounds)
         env:
@@ -62,7 +62,7 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
-          CF_AI_TOKEN: ${{ secrets.CF_AI_TOKEN }}
+          CF_AI_TOKEN: ${{ secrets.CF_AI_TOKEN || secrets.CF_API_TOKEN }}
         run: |
           python pipeline/review.py out
           for round in 1 2 3 4; do

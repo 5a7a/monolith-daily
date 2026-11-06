@@ -20,9 +20,11 @@ check('Kokoro voice files', lambda: urllib.request.urlopen(urllib.request.Reques
 if os.environ.get('IG_TOKEN'):
     check('Instagram key', lambda: 'id' in json.load(urllib.request.urlopen(urllib.request.Request(
         f"https://graph.facebook.com/{os.environ['IG_USER_ID']}?fields=id,username", headers={'Authorization': 'OAuth ' + os.environ['IG_TOKEN']}), timeout=30)))
-if os.environ.get('WORKER_URL'):
+import telegram
+_wurl, _ = telegram.worker_link()
+if _wurl:
     def worker():
-        try: urllib.request.urlopen(os.environ['WORKER_URL'], timeout=30)
+        try: urllib.request.urlopen(_wurl, timeout=30)
         except urllib.error.HTTPError as e: return e.code == 403      # it answers (and refuses strangers) = alive
         return True
     check('Cloudflare Worker', worker)

@@ -17,6 +17,7 @@ export default {
     if (req.method === 'POST' && url.pathname === '/pending') {
       if (req.headers.get('X-Pipe-Secret') !== env.PIPE_SECRET) return new Response('forbidden', { status: 403 });
       const p = await req.json(); const mins = Number(env.AUTO_POST_MINUTES || 30);
+      if (p.test) return new Response('ok');   // setup check from deploy-worker: secret works, nothing stored
       await env.STATE.put('pending:' + p.run_id, JSON.stringify({ ...p, deadline: Date.now() + mins * 60000 }), { expirationTtl: 3 * 86400 });
       return new Response('ok');
     }

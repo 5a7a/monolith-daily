@@ -16,7 +16,7 @@ jobs:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
-          CF_AI_TOKEN: ${{ secrets.CF_AI_TOKEN }}
+          CF_AI_TOKEN: ${{ secrets.CF_AI_TOKEN || secrets.CF_API_TOKEN }}
           IG_TOKEN: ${{ secrets.IG_TOKEN }}
           IG_USER_ID: ${{ secrets.IG_USER_ID }}
           WORKER_URL: ${{ secrets.WORKER_URL }}

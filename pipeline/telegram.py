@@ -10,6 +10,17 @@ def api(method, fields=None, files=None):
         for k, p in files.items(): body += f'--{b}\r\nContent-Disposition: form-data; name="{k}"; filename="{os.path.basename(p)}"\r\nContent-Type: video/mp4\r\n\r\n'.encode() + open(p, 'rb').read() + b'\r\n'
         req = urllib.request.Request(url, body + f'--{b}--\r\n'.encode(), {'Content-Type': f'multipart/form-data; boundary={b}'})
     return json.load(urllib.request.urlopen(req, timeout=300))
+def worker_link():
+    """Where the Cloudflare Worker lives (worker/url.txt, written by the deploy workflow) and the shared secret.
+    The secret is derived from the bot token, so it never has to be copied anywhere by hand."""
+    import hashlib
+    url = os.environ.get('WORKER_URL')
+    if not url:
+        f = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'worker', 'url.txt')
+        url = open(f).read().strip() if os.path.exists(f) else ''
+    secret = os.environ.get('PIPE_SECRET') or hashlib.sha256((os.environ.get('TG_BOT_TOKEN', '') + ':pipe').encode()).hexdigest()[:40]
+    return url, secret
+
 def verdict(out):
     try: r = json.load(open(os.path.join(out, 'review.json')))
     except Exception: r = {'ok': False, 'checked': False, 'problems': [{'detail': 'no AI check result'}]}
@@ -45,9 +56,13 @@ if __name__ == '__main__':
                   {'video': os.path.join(out, 'preview.mp4')})['result']
         extra = (probs + '\n\n' if probs else '') + 'SOURCES\n' + meta['sources']
         api('sendMessage', {'chat_id': chat, 'text': extra[:4000], 'reply_to_message_id': msg['message_id']})
-        url, secret = os.environ.get('WORKER_URL'), os.environ.get('PIPE_SECRET')
+        url, secret = worker_link()
         if url and secret:   # register the episode with the Worker, which auto-posts it later if nobody answers
             body = json.dumps({'run_id': run, 'ai_ok': bool(r.get('ok')), 'message_id': msg['message_id'], 'chat_id': chat}).encode()
-            urllib.request.urlopen(urllib.request.Request(url.rstrip('/') + '/pending', body, {'Content-Type': 'application/json', 'X-Pipe-Secret': secret}), timeout=30)
+            for attempt in range(3):
+                try: urllib.request.urlopen(urllib.request.Request(url.rstrip('/') + '/pending', body, {'Content-Type': 'application/json', 'X-Pipe-Secret': secret}), timeout=30); break
+                except Exception as e:
+                    if attempt == 2: api('sendMessage', {'chat_id': chat, 'text': f'⚠️ Couldn\'t reach the auto-post timer ({e}). This episode will only post if you tap Publish.'})
+                    import time; time.sleep(10)
     else:                 # say "text"
         api('sendMessage', {'chat_id': chat, 'text': sys.argv[2][:4000]})

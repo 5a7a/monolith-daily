@@ -1,0 +1,83 @@
+name: deploy-worker
+# Sets up (or updates) the free Cloudflare Worker that runs the schedule, the Telegram buttons and the 30-minute auto-post.
+# Needs GitHub secrets: CF_ACCOUNT_ID, CF_API_TOKEN (Cloudflare), WORKER_GH_TOKEN (GitHub key the Worker uses to start
+# episodes), TG_BOT_TOKEN, TG_CHAT_ID. Everything else (storage, shared secrets, Telegram webhook) is done here.
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+    paths: ['worker/worker.js', 'worker/wrangler.toml']
+permissions: { contents: write }
+concurrency: { group: deploy-worker, cancel-in-progress: false }
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+      TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+      TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+      WORKER_GH_TOKEN: ${{ secrets.WORKER_GH_TOKEN }}
+      W: npx --yes wrangler@4.156.2
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - name: Check the keys are there
+        run: |
+          miss=""
+          for k in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID TG_BOT_TOKEN TG_CHAT_ID WORKER_GH_TOKEN; do [ -n "${!k}" ] || miss="$miss $k"; done
+          [ -z "$miss" ] || { echo "::error::Missing GitHub secrets:$miss"; exit 1; }
+      - name: Storage (KV) for waiting episodes
+        working-directory: worker
+        run: |
+          id=$($W kv namespace list 2>/dev/null | python3 -c "import json,sys; d=json.load(sys.stdin); print(next((n['id'] for n in d if n['title'] in ('monolith-daily-STATE','STATE','monolith-state')), ''))")
+          if [ -z "$id" ]; then
+            $W kv namespace create STATE | tee /tmp/kv.txt
+            id=$($W kv namespace list | python3 -c "import json,sys; d=json.load(sys.stdin); print(next((n['id'] for n in d if 'STATE' in n['title']), ''))")
+          fi
+          [ -n "$id" ] || { echo "::error::Could not create the KV storage (does the Cloudflare key have Workers KV Storage: Edit?)"; exit 1; }
+          sed -i "s/^id = .*/id = \"$id\"/" wrangler.toml
+          echo "KV storage: $id"
+      - name: Deploy the Worker
+        working-directory: worker
+        run: |
+          $W deploy --var TG_ADMIN_ID:$TG_CHAT_ID 2>&1 | tee /tmp/deploy.txt
+          url=$(grep -oE 'https://[a-z0-9.-]+\.workers\.dev' /tmp/deploy.txt | head -1)
+          [ -n "$url" ] || { echo "::error::Deployed, but no workers.dev address. In Cloudflare open Workers & Pages and choose a workers.dev subdomain, then run this again."; exit 1; }
+          echo "$url" > url.txt; echo "URL=$url" >> $GITHUB_ENV; echo "Worker: $url"
+      - name: Secrets for the Worker (derived, nothing to copy by hand)
+        working-directory: worker
+        run: |
+          python3 - <<'PY'
+          import json, os, hashlib
+          t = os.environ['TG_BOT_TOKEN']
+          json.dump({'GH_TOKEN': os.environ['WORKER_GH_TOKEN'], 'TG_BOT_TOKEN': t,
+                     'PIPE_SECRET': hashlib.sha256((t + ':pipe').encode()).hexdigest()[:40],
+                     'TG_SECRET': hashlib.sha256((t + ':webhook').encode()).hexdigest()[:40]}, open('/tmp/s.json', 'w'))
+          PY
+          $W secret bulk /tmp/s.json; rm /tmp/s.json
+      - name: Connect the Telegram buttons to the Worker
+        run: |
+          sec=$(printf '%s' "$TG_BOT_TOKEN:webhook" | sha256sum | cut -c1-40)
+          curl -sS "https://api.telegram.org/bot$TG_BOT_TOKEN/setWebhook" -d "url=$URL" -d "secret_token=$sec" -d 'allowed_updates=["callback_query"]' -d drop_pending_updates=true
+          echo; curl -sS "https://api.telegram.org/bot$TG_BOT_TOKEN/getWebhookInfo" | python3 -c "import json,sys; r=json.load(sys.stdin)['result']; print('webhook:', r.get('url'), '| last error:', r.get('last_error_message'))"
+      - name: Check it answers (and refuses strangers)
+        run: |
+          sleep 10
+          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$URL/pending" -d '{}')
+          echo "stranger -> $code"; [ "$code" = "403" ] || { echo "::error::Worker didn't answer as expected ($code)"; exit 1; }
+          pipe=$(printf '%s' "$TG_BOT_TOKEN:pipe" | sha256sum | cut -c1-40)
+          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$URL/pending" -H "X-Pipe-Secret: $pipe" -H 'Content-Type: application/json' -d '{"test":true}')
+          echo "with secret -> $code"; [ "$code" = "200" ] || { echo "::error::Worker refused our own secret ($code)"; exit 1; }
+      - name: Save the Worker address in the repo
+        run: |
+          git config user.name "monolith-bot"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add worker/url.txt
+          git diff --cached --quiet || { git commit -qm "Worker address" && git pull --rebase -q && git push -q; }
+      - name: Tell Telegram
+        if: always() && env.CLOUDFLARE_API_TOKEN != ''
+        run: |
+          if [ "${{ job.status }}" = "success" ]; then t="✅ Cloudflare is set up: schedule (09:07, 15:07, 21:07), Publish/Redo/Reject buttons and the 30-minute auto-post are live."; else t="⚠️ Cloudflare setup failed - see the deploy-worker run on GitHub."; fi
+          curl -sS "https://api.telegram.org/bot$TG_BOT_TOKEN/sendMessage" -d chat_id="$TG_CHAT_ID" --data-urlencode text="$t" >/dev/null
