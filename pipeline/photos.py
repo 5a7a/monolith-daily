@@ -29,7 +29,7 @@ def fetch(urls, out, skip=(), check=None):
         except Exception: continue
     return None, None
 
-VISION = [('GEMINI_API_KEY', None), ('GROQ_API_KEY', 'meta-llama/llama-4-scout-17b-16e-instruct'), ('OPENROUTER_API_KEY', 'google/gemma-4-31b-it:free')]
+VISION = [('GEMINI_API_KEY', None), ('GROQ_API_KEY', 'qwen/qwen3.8-27b'), ('OPENROUTER_API_KEY', 'google/gemma-4-31b-it:free')]
 _SEEN = set()
 def _vision_model(base, key):
     import json
@@ -37,7 +37,7 @@ def _vision_model(base, key):
         r = json.load(urllib.request.urlopen(urllib.request.Request(base + '/models', headers={'Authorization': 'Bearer ' + key, 'User-Agent': UA['User-Agent']}), timeout=30))
         ids = [m['id'] for m in r.get('data', [])]
         if 'openrouter' in base: ids = [i for i in ids if i.endswith(':free')]
-        for pat in ('llama-4-maverick', 'llama-4-scout', 'gemma-4', 'vision', 'vl'):
+        for pat in ('qwen3', 'llama-4-maverick', 'llama-4-scout', 'gemma-4', 'vision', 'vl'):
             hit = [i for i in ids if pat in i.lower() and 'guard' not in i.lower()]
             if hit: return hit[0]
     except Exception: pass

@@ -19,8 +19,10 @@ jobs:
         run: |
           cd pipeline && python - <<'PY'
           import photos, feed, os
-          a = [x for x in feed.candidates(12, 20) if x.get('image')][0]; photos.KNOWN[a['url']] = a['image']
-          img, _ = photos.fetch([a['url']], '/tmp/p.jpg'); print('headline:', a['title'])
+          for a in [x for x in feed.candidates(24, 20) if x.get('image')]:
+              photos.KNOWN[a['url']] = a['image']; img, _ = photos.fetch([a['url']], '/tmp/p.jpg')
+              if img: break
+          print('headline:', a['title'])
           ALL = ['GEMINI_API_KEY', 'GROQ_API_KEY', 'OPENROUTER_API_KEY']; keep = {k: os.environ[k] for k in ALL if k in os.environ}
           for key in ALL:
               for k in ALL: os.environ.pop(k, None)
