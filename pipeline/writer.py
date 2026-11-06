@@ -125,7 +125,7 @@ def write(cands, tries=5, covered=()):
     byid = {k: next(a for a in cands if a['id'] == v) for k, v in short.items()}
     scands = [{'id': k} for k in short]
     told = ('ALREADY COVERED in the last 24 hours (do not pick these events again unless the candidate reports a major new development, '
-            'e.g. a much higher death toll or a decision):\n' + '\n'.join('- ' + c for c in covered) + '\n\n') if covered else ''
+            'e.g. a much higher death toll or a decision). If fewer than 4 candidates are new, fill the rest with the newest development of a covered event:\n' + '\n'.join('- ' + c for c in covered) + '\n\n') if covered else ''
     msgs = [{'role': 'system', 'content': SYSTEM}, {'role': 'user', 'content': told + 'CANDIDATES:\n' + json.dumps(arts, ensure_ascii=False)}]
     last, fails = None, {}
     for attempt in range(tries):
@@ -240,7 +240,7 @@ def validate(s, cands, spread=True):
     p = []; ids = {a['id'] for a in cands}
     try:
         st = s['stories']
-        if len(st) != N_STORIES: p.append(f'need exactly {N_STORIES} stories')
+        if len(st) != N_STORIES: p.append(f'need exactly {N_STORIES} stories (if there are not enough new ones, add a covered event with its newest development)')
         for n, x in enumerate(st, 1):
             if x['article_id'] not in ids: p.append(f"story {n}: unknown article_id")
             for f in ('question', 'answer'):

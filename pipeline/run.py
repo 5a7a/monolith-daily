@@ -9,6 +9,7 @@ def log(*a): print(f'[{time.time() - T:6.1f}s]', *a, flush=True)
 import feed
 cands = feed.candidates(max_age_h=12, n=20)
 if len(cands) < 8: cands = feed.candidates(max_age_h=24, n=20)       # slow news hours: look back a whole day
+
 LOCAL = re.compile(r'\b(bus|truck|lorry|car|van|road|motorway|highway|train)\b.{0,40}\b(crash\w*|collid\w*|collision|accident|overturn\w*)\b|'
                    r'\b(crash\w*|collision|accident)\b.{0,40}\b(bus|truck|car|road|motorway|highway)\b|\broof\b.{0,20}\bcollaps|'
                    r'\bshot dead\b|\bgunmen\b|\bstabb\w*|\bbears?\b|\b(grizzly|shark|dog) attack|\bmurder\w*|\bhouse fire\b|\bdrown\w*', re.I)
@@ -26,7 +27,11 @@ def same_story(a):
     k = kw(a['title'])
     return any(len(k & kw(h['title'])) / max(1, min(len(k), len(kw(h['title'])))) >= 0.4 for h in recent)
 fresh = [a for a in cands if not same_story(a)]
+if len(fresh) < 6:                                                    # not enough new stories in 12h: look back a whole day
+    more = [a for a in feed.candidates(max_age_h=24, n=30) if not same_story(a) and a['id'] not in {b['id'] for b in fresh}]
+    fresh += [a for a in more if not LOCAL.search(a['title']) or big_toll(a['title'])]
 if len(fresh) >= 6: cands = fresh                                     # only if enough is left to choose from
+else: cands = fresh + [a for a in cands if a not in fresh][:8 - len(fresh)]   # very slow news: covered stories may come back with their newest update
 
 if '--script' in sys.argv:
     S = json.load(open(sys.argv[sys.argv.index('--script') + 1]))
