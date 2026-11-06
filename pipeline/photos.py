@@ -54,7 +54,8 @@ def screen(path, headline, sensitive=False, _again=True):
                                  'Answer JSON {"graphic": bool, "fits": bool, "mostly_text": bool, "private_person": bool, "why": "few words"}. '
                                  'graphic = shows dead bodies, body bags, corpses, blood or visible injuries. fits = plausibly shows this story '
                                  '(place, people, event or subject), not a logo, placeholder, chart or unrelated stock image. mostly_text = mainly '
-                                 'words/graphics. private_person = an identifiable ordinary (non-public) person is the main subject.'},
+                                 'words/graphics. private_person = the main subject is an identifiable person who is not a public figure (not a politician, '
+                                 'official, celebrity or athlete): victims, suspects, relatives and witnesses count as private even when the headline names them.'},
         {'type': 'image_url', 'image_url': {'url': 'data:image/jpeg;base64,' + base64.b64encode(b.getvalue()).decode()}}]}]
     for key, model in VISION:
         prov = next((p for p in writer.PROVIDERS if p[0] == key), None)

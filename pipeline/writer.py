@@ -92,7 +92,7 @@ RULES
   a road crash), stories about one little-known person unless it matters internationally. A story that matters to people in
   many countries beats a local incident even if the local one is newer.
 - question: male host, 2-7 words, natural and varied, e.g. "What happened in Spain?", "And in Belgrade?", "What about Yemen?".
-- answer: female anchor, 2 short sentences, 18-26 words (hard limit), ONLY facts stated in that article's text. No outside knowledge,
+- answer: female anchor, 2 short sentences, each clear on its own (no vague filler like 'The fire burned.'), 18-26 words (hard limit), ONLY facts stated in that article's text. No outside knowledge,
   no guesses, no added numbers. Do NOT name any news outlet (the source credit is added automatically).
 - Write every number as spoken words ("thirty-one", "six point three billion dollars"). No digits anywhere in question/answer.
 - Calm, serious tone for deaths and war. Never: website names, "link in bio", prices, "startup", "launch", "free trial".
@@ -249,6 +249,11 @@ def validate(s, cands, spread=True):
                 m = BANNED.search(x[f])
                 if m: p.append(f'story {n}: the {f} uses the banned word "{m.group(0)}" - rephrase without it (e.g. "fired", "started", "opened", "unveiled")')
             if not 2 <= len(x['question'].split()) <= 8: p.append(f'story {n}: question must be 2-7 words')
+            for m_, y in enumerate(st[:n - 1], 1):   # the same event twice in one episode (two outlets, one story)
+                same_place = str(y.get('place', '')).split(',')[0].strip().upper() == str(x.get('place', '')).split(',')[0].strip().upper()
+                kx = set(re.findall(r'[a-z]{5,}', x['answer'].lower())); ky = set(re.findall(r'[a-z]{5,}', y['answer'].lower()))
+                if y.get('article_id') == x.get('article_id') or (same_place and len(kx & ky) / max(1, min(len(kx), len(ky))) >= 0.3):
+                    p.append(f'story {n}: same event as story {m_} - replace it with a different candidate')
             if spread and sum(1 for y in st if _country(y) == _country(x)) > 2: p.append(f'story {n}: more than 2 stories from {_country(x)} - swap one for a different region')
             if not x['answer'].rstrip().endswith(('.', '!', '?')): p.append(f'story {n}: the answer must end with a full sentence')
             if not 15 <= len(x["answer"].split()) <= 30: p.append(f'story {n}: answer must be 20-30 words, it has {len(x["answer"].split())}')
