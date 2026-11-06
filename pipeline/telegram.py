@@ -15,11 +15,14 @@ def verdict(out):
     except Exception: r = {'ok': False, 'checked': False, 'problems': [{'detail': 'no AI check result'}]}
     try: names = json.load(open(os.path.join(out, 'name_flags.json')))
     except Exception: names = []
-    if names:   # a name the voices couldn't get right: never auto-post
-        r = {**r, 'ok': False, 'problems': r.get('problems', []) + [{'type': 'pronunciation', 'severity': 'major', 'detail': n} for n in names]}
-    mins = int(os.environ.get('AUTO_POST_MINUTES', '30'))
+    uniq = sorted({n.split('"')[1] if '"' in n else n for n in names})   # each unsure name once
+    HOLD_AT = 3                                    # this many unsure names usually means something else went wrong (voice glitch)
+    mins = int(os.environ.get('AUTO_POST_MINUTES', '30')); when = f'{mins // 60}h{mins % 60:02d}' if mins >= 60 else f'{mins} min'
+    if len(uniq) >= HOLD_AT:
+        r = {**r, 'ok': False, 'problems': r.get('problems', []) + [{'type': 'pronunciation', 'severity': 'major', 'detail': f'{len(uniq)} names may be mispronounced: ' + ', '.join(uniq)}]}
     if r.get('ok'):
-        head = f"✅ AI check passed. Auto-posts in {f'{mins // 60}h{mins % 60:02d}' if mins >= 60 else f'{mins} min'} if you don't answer."
+        head = f"✅ AI check passed. Auto-posts in {when} if you don't answer."
+        if uniq: head += f"\n⚠️ Name{'s' if len(uniq) > 1 else ''} the voice may have said slightly wrong: {', '.join(uniq)}. Listen if you can; it will still post."
     else:
         head = "⚠️ AI check found problems, so this will NOT auto-post. Tap Publish yourself if it's fine."
     try: fixed = json.load(open(os.path.join(out, 'fixlog.json')))
