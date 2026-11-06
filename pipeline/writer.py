@@ -41,7 +41,7 @@ def _call(base, key, model, messages, strict=True):
     req = urllib.request.Request(base + '/chat/completions', body, {'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json', 'User-Agent': UA})
     r = json.load(urllib.request.urlopen(req, timeout=100)); txt = r['choices'][0]['message'].get('content') or ''
     if '{' not in txt: raise ValueError('empty reply')
-    return json.loads(txt[txt.find('{'): txt.rfind('}') + 1])
+    return json.JSONDecoder().raw_decode(txt[txt.find('{'):])[0]   # the first JSON object, ignoring anything after it
 
 def chat(messages, skip=None, passes=2):
     import time, urllib.error
@@ -134,7 +134,7 @@ def write(cands, tries=5, covered=()):
         for x in s.get('stories', []):                    # label lengths are fixed in code, at a word break
             x['article_id'] = str(x.get('article_id', '')).strip()
             x['place'], x['rundown'] = _trim(str(x.get('place', '')), 22), _trim(str(x.get('rundown', '')), 40)
-        probs = validate(s, scands)
+        probs = validate(s, scands, spread=attempt < 2)   # region spread is wanted, but never worth losing the episode
         if probs:
             print('  writer: format problems ->', probs, flush=True)
             last = 'Fix these problems and return the full JSON again:\n' + '\n'.join(probs)
@@ -236,7 +236,7 @@ def _trim(t, n):
     cut = t[:n + 1].rsplit(' ', 1)[0].rstrip(' ·,-')
     return cut if len(cut) >= n // 2 else t[:n]
 
-def validate(s, cands):
+def validate(s, cands, spread=True):
     p = []; ids = {a['id'] for a in cands}
     try:
         st = s['stories']
@@ -248,7 +248,7 @@ def validate(s, cands):
                 m = BANNED.search(x[f])
                 if m: p.append(f'story {n}: the {f} uses the banned word "{m.group(0)}" - rephrase without it (e.g. "fired", "started", "opened", "unveiled")')
             if not 2 <= len(x['question'].split()) <= 8: p.append(f'story {n}: question must be 2-7 words')
-            if sum(1 for y in st if _country(y) == _country(x)) > 2: p.append(f'story {n}: more than 2 stories from {_country(x)} - swap one for a different region')
+            if spread and sum(1 for y in st if _country(y) == _country(x)) > 2: p.append(f'story {n}: more than 2 stories from {_country(x)} - swap one for a different region')
             if not x['answer'].rstrip().endswith(('.', '!', '?')): p.append(f'story {n}: the answer must end with a full sentence')
             if not 15 <= len(x["answer"].split()) <= 30: p.append(f'story {n}: answer must be 20-30 words, it has {len(x["answer"].split())}')
             if not (-90 <= float(x['lat']) <= 90 and -180 <= float(x['lon']) <= 180): p.append(f'story {n}: bad coordinates')
