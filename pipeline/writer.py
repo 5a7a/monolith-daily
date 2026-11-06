@@ -134,6 +134,7 @@ def write(cands, tries=8, covered=()):
         for x in s.get('stories', []):                    # label lengths are fixed in code, at a word break
             x['article_id'] = str(x.get('article_id', '')).strip()
             x['place'], x['rundown'] = _trim(str(x.get('place', '')), 22), _trim(str(x.get('rundown', '')), 40)
+            x['chips'] = [[_chip_digits(str(c[0])), *c[1:]] for c in x.get('chips', []) if c]
         probs = validate(s, scands, spread=attempt < 2)   # region spread is wanted, but never worth losing the episode
         if probs:
             print('  writer: format problems ->', probs, flush=True)
@@ -222,6 +223,18 @@ def _in_article(v, art):
     if v.endswith('00') and re.search(r'(?<![\d.])' + re.escape(str(int(v) / 1000).rstrip('0').rstrip('.')) + r'\s*(k|thousand)\b', a, re.I): return True
     return False
 
+def _chip_digits(t):   # chips show digits: 'FIFTY KILLED' -> '50 KILLED', 'SEVEN PERCENT' -> '7%', 'OVER EIGHT' -> 'OVER 8'
+    words = t.split(); out = []; i = 0
+    while i < len(words):
+        j = i; seq = []
+        while j < len(words) and (words[j].lower().strip(',') in VAL or words[j].lower() in ('hundred', 'thousand', 'point') or '-' in words[j] and all(w in VAL for w in words[j].lower().split('-'))):
+            seq.append(words[j].replace('-', ' ')); j += 1
+        nums = _numbers(' '.join(seq)) if seq else []
+        if seq and (nums or (len(seq) == 1 and seq[0].lower() in VAL)):
+            out.append(nums[0] if nums else str(VAL[seq[0].lower()])); i = j
+        else: out.append(words[i]); i += 1
+    return re.sub(r'(\d) PERCENT\b', r'\1%', ' '.join(out), flags=re.I)
+
 def _country(x):   # 'ZAPORIZHZHIA, UKRAINE' -> 'UKRAINE'; rundown 'UKRAINE · ...' as a fallback
     return (str(x.get('place', '')).split(',')[-1] or str(x.get('rundown', '')).split('·')[0]).strip().upper()
 
@@ -255,6 +268,8 @@ def validate(s, cands, spread=True):
                 if y.get('article_id') == x.get('article_id') or (same_place and len(kx & ky) / max(1, min(len(kx), len(ky))) >= 0.3):
                     p.append(f'story {n}: same event as story {m_} - replace it with a different candidate')
             if spread and sum(1 for y in st if _country(y) == _country(x)) > 2: p.append(f'story {n}: more than 2 stories from {_country(x)} - swap one for a different region')
+            if ',' not in str(x.get('place', '')) or re.search(r'\b(CYBERSPACE|ONLINE|GLOBAL|WORLDWIDE|INTERNET)\b', str(x.get('place', '')).upper()):
+                p.append(f"story {n}: place must be a real location as 'CITY, COUNTRY' or 'REGION, COUNTRY' (for an online/company story use the company's home city)")
             if not x['answer'].rstrip().endswith(('.', '!', '?')): p.append(f'story {n}: the answer must end with a full sentence')
             if not 15 <= len(x["answer"].split()) <= 30: p.append(f'story {n}: answer must be 20-30 words, it has {len(x["answer"].split())}')
             if not (-90 <= float(x['lat']) <= 90 and -180 <= float(x['lon']) <= 180): p.append(f'story {n}: bad coordinates')
