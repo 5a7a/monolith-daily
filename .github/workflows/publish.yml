@@ -46,6 +46,10 @@ jobs:
           PY
           git config user.name "monolith-bot"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           for i in 1 2 3; do git add pipeline/history.json && git commit -qm "Covered stories" ; git pull --rebase -q && git push -q && break; sleep 10; done
+      - name: If posting failed, send the video and caption for posting by hand
+        if: failure() && env.SKIP != '1'
+        env: { TG_BOT_TOKEN: '${{ secrets.TG_BOT_TOKEN }}', TG_CHAT_ID: '${{ secrets.TG_CHAT_ID }}' }
+        run: python pipeline/telegram.py manual out
       - name: Confirm
         if: always() && env.SKIP != '1'
         env: { TG_BOT_TOKEN: '${{ secrets.TG_BOT_TOKEN }}', TG_CHAT_ID: '${{ secrets.TG_CHAT_ID }}' }

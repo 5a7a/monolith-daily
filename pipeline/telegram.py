@@ -50,8 +50,20 @@ def verdict(out):
     notes = ('FIXED AUTOMATICALLY\n' + '\n'.join('• ' + x for x in fixed) + '\n\n' if fixed else '') + ('STILL FLAGGED\n' + '\n'.join(lines) if lines else '')
     return r, head, notes.strip()
 
+def manual(out):
+    """Instagram refused the post: send a phone-sized video and the caption (tap to copy) so it can be posted by hand."""
+    import html
+    meta = json.load(open(os.path.join(out, 'meta.json'))); chat = os.environ['TG_CHAT_ID']
+    vid = next((os.path.join(out, f) for f in ('manual.mp4', 'preview.mp4') if os.path.exists(os.path.join(out, f))), None)
+    if vid:
+        api('sendDocument', {'chat_id': chat, 'caption': '📲 Instagram refused the automatic post. Save this video and post it as a Reel on @monolith.news yourself.'},
+            {'document': vid})
+    api('sendMessage', {'chat_id': chat, 'parse_mode': 'HTML',
+                        'text': 'Caption (tap it to copy, then paste into Instagram; turn on the AI label under Advanced settings):\n\n<code>' + html.escape(meta['caption']) + '</code>'})
+
 if __name__ == '__main__':
     cmd = sys.argv[1]; chat = os.environ['TG_CHAT_ID']
+    if cmd == 'manual': manual(sys.argv[2]); sys.exit(0)
     if cmd == 'review':   # review OUTDIR RUN_ID
         out, run = sys.argv[2], sys.argv[3]; meta = json.load(open(os.path.join(out, 'meta.json'))); r, head, probs = verdict(out)
         kb = {'inline_keyboard': [[{'text': '✅ Publish', 'callback_data': f'pub:{run}'}, {'text': '🔁 Redo', 'callback_data': f'redo:{run}'}, {'text': '✖ Reject', 'callback_data': f'rej:{run}'}]]}
