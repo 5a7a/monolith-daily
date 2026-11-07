@@ -1,0 +1,16 @@
+name: test-ig
+on:
+  workflow_dispatch:
+    inputs:
+      run_id: { description: 'episode run id', required: true }
+permissions: { actions: read, contents: read }
+jobs:
+  t:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: episode, path: out, run-id: '${{ inputs.run_id }}', github-token: '${{ github.token }}' }
+      - run: ffprobe -v error -show_entries stream=codec_name,width,height,r_frame_rate,sample_rate,channels,bit_rate:format=duration,size,bit_rate -of compact out/episode.mp4 || true
+      - env: { IG_TOKEN: '${{ secrets.IG_TOKEN }}', IG_USER_ID: '${{ secrets.IG_USER_ID }}', IG_DRY: '1' }
+        run: python pipeline/instagram.py out

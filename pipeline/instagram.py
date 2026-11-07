@@ -20,16 +20,18 @@ def already():   # never post the same episode twice: if one of the newest posts
         for m in call('GET', f'{G}/{IG}/media?fields=caption,permalink&limit=5').get('data', []):
             if (m.get('caption') or '').strip()[:150] == meta['caption'].strip()[:150]: done(m.get('permalink', ''), 'already posted')
     except Retry as e: print('could not check recent posts:', e)
-already()
+if not os.environ.get('IG_DRY'): already()
 
 def post():
     c = call('POST', f'{G}/{IG}/media?upload_type=resumable', {'media_type': 'REELS', 'caption': meta['caption'], 'is_ai_generated': 'true'})
-    call('POST', c['uri'], headers={'offset': '0', 'file_size': str(os.path.getsize(mp4))}, body=open(mp4, 'rb').read())
+    call('POST', c['uri'], headers={'offset': '0', 'file_size': str(os.path.getsize(mp4)), 'Content-Type': 'application/octet-stream'},
+         body=open(mp4, 'rb').read())   # raw bytes: without this content type the upload server rejects the video
     for _ in range(20):   # Meta recommends polling about once a minute; reels usually finish in 30s-2min
         time.sleep(30); st = call('GET', f"{G}/{c['id']}?fields=status_code,status")
         if st.get('status_code') == 'FINISHED': break
         if st.get('status_code') in ('ERROR', 'EXPIRED'): raise Retry(f'processing failed: {st}')
     else: raise Retry('processing timed out')
+    if os.environ.get('IG_DRY'): print('DRY RUN: uploaded and processed fine, not published'); sys.exit(0)
     pub = call('POST', f'{G}/{IG}/media_publish', {'creation_id': c['id']})
     try: link = call('GET', f"{G}/{pub['id']}?fields=permalink").get('permalink', '')
     except Retry: link = ''                                   # it's posted; a missing link must not cause a second upload
