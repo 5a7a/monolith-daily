@@ -40,8 +40,10 @@ import telegram
 _wurl, _ = telegram.worker_link()
 if _wurl:
     def worker():
-        try: urllib.request.urlopen(_wurl, timeout=30)
-        except urllib.error.HTTPError as e: return e.code == 403      # it answers (and refuses strangers) = alive
+        import hashlib   # register nothing: a test call with our own secret must be accepted (proves address, secret and user-agent all work)
+        sec = hashlib.sha256((os.environ.get('TG_BOT_TOKEN', '') + ':pipe').encode()).hexdigest()[:40]
+        req = urllib.request.Request(_wurl.rstrip('/') + '/pending', b'{"test":true}', {'Content-Type': 'application/json', 'X-Pipe-Secret': sec, 'User-Agent': 'monolith-daily/1.0'})
+        return urllib.request.urlopen(req, timeout=30).status == 200
         return True
     check('Cloudflare Worker', worker)
 text = ('⚠️ Weekly check: something needs attention\n' + '\n'.join('• ' + b for b in bad) + '\n\nWorking: ' + ', '.join(ok)) if bad \

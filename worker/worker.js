@@ -27,7 +27,8 @@ export default {
     if (String(q.from.id) !== String(env.TG_ADMIN_ID)) { await tg(env, 'answerCallbackQuery', { callback_query_id: q.id, text: 'Not allowed' }); return new Response('ok'); }
     const [act, run] = q.data.split(':'); if (act === 'done') return new Response('ok');
     const key = 'pending:' + run; const known = await env.STATE.get(key);
-    if (!known && act === 'pub') { await tg(env, 'answerCallbackQuery', { callback_query_id: q.id, text: 'Already handled' }); return new Response('ok'); }
+    // an episode the timer never heard about (e.g. registration failed) can still be published by its button, but only once
+    if (!known && act === 'pub' && await env.STATE.get('posted:' + run)) { await tg(env, 'answerCallbackQuery', { callback_query_id: q.id, text: 'Already posted' }); return new Response('ok'); }
     await env.STATE.delete(key);           // answered -> no auto-post
     let note = 'Rejected';
     if (act === 'pub') note = (await publishOnce(env, run)) ? 'Publishing…' : 'Already posted';

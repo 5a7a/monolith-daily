@@ -54,6 +54,7 @@ if __name__ == '__main__':
     if cmd == 'review':   # review OUTDIR RUN_ID
         out, run = sys.argv[2], sys.argv[3]; meta = json.load(open(os.path.join(out, 'meta.json'))); r, head, probs = verdict(out)
         kb = {'inline_keyboard': [[{'text': '✅ Publish', 'callback_data': f'pub:{run}'}, {'text': '🔁 Redo', 'callback_data': f'redo:{run}'}, {'text': '✖ Reject', 'callback_data': f'rej:{run}'}]]}
+        if os.environ.get('TEST_RUN'): kb = {'inline_keyboard': []}   # a test episode can never be published
         cap = head + '\n\n' + meta['caption']
         msg = api('sendVideo', {'chat_id': chat, 'caption': cap[:1020], 'supports_streaming': 'true', 'reply_markup': json.dumps(kb)},
                   {'video': os.path.join(out, 'preview.mp4')})['result']
@@ -64,7 +65,7 @@ if __name__ == '__main__':
         if url and secret:   # register the episode with the Worker, which auto-posts it later if nobody answers
             body = json.dumps({'run_id': run, 'ai_ok': bool(r.get('ok')), 'message_id': msg['message_id'], 'chat_id': chat}).encode()
             for attempt in range(3):
-                try: urllib.request.urlopen(urllib.request.Request(url.rstrip('/') + '/pending', body, {'Content-Type': 'application/json', 'X-Pipe-Secret': secret}), timeout=30); break
+                try: urllib.request.urlopen(urllib.request.Request(url.rstrip('/') + '/pending', body, {'Content-Type': 'application/json', 'X-Pipe-Secret': secret, 'User-Agent': 'monolith-daily/1.0'}), timeout=30); break   # Cloudflare blocks the default Python user-agent (403)
                 except Exception as e:
                     if attempt == 2: api('sendMessage', {'chat_id': chat, 'text': f'⚠️ Couldn\'t reach the auto-post timer ({e}). This episode will only post if you tap Publish.'})
                     import time; time.sleep(10)
