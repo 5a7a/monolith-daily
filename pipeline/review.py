@@ -28,16 +28,20 @@ def ask(fileinfo, prompt):
     body = {'contents': [{'parts': [{'file_data': {'mime_type': 'video/mp4', 'file_uri': fileinfo['uri']}}, {'text': prompt}]}],
             'generationConfig': {'responseMimeType': 'application/json', 'temperature': 0.1}}
     txt = None
-    for model in (MODEL, 'gemini-3.5-flash-lite'):          # main model, then a lighter one if Google is overloaded
-        for attempt in range(3):
+    for model in dict.fromkeys((MODEL, 'gemini-3.5-flash', 'gemini-3.5-flash-lite')):   # main model, then lighter ones if Google is overloaded
+        for attempt in range(2):
             try:
                 r = req(f'{G}/v1beta/models/{model}:generateContent', json.dumps(body).encode(), {'Content-Type': 'application/json'})
                 txt = r['candidates'][0]['content']['parts'][0]['text']; break
             except urllib.error.HTTPError as e:
-                if e.code in (429, 500, 502, 503, 504): time.sleep(20 * (attempt + 1)); continue
+                print(f'  review: {model} HTTP {e.code}', flush=True)
+                if e.code in (429, 500, 502, 503, 504) and attempt == 0: time.sleep(20); continue
                 break
+            except Exception as e:                       # timed out (busy): don't retry the same model, try the next one
+                print(f'  review: {model} {str(e)[:60]}', flush=True); break
         if txt: break
-    if not txt:   # newer Interactions endpoint
+    if not txt: raise RuntimeError('no Gemini model could watch the video')
+    if False:   # (old Interactions endpoint fallback, unused)
         body = {'model': MODEL, 'input': [{'type': 'video', 'uri': fileinfo['uri'], 'mime_type': 'video/mp4'}, {'type': 'text', 'text': prompt}]}
         txt = json.dumps(req(f'{G}/v1beta/interactions', json.dumps(body).encode(), {'Content-Type': 'application/json'}))
         txt = txt.encode().decode('unicode_escape', 'ignore')
@@ -72,6 +76,36 @@ Return JSON only: {"ok": true|false, "problems": [{"time": "m:ss", "type": "audi
 EXPECTED CONTENT:
 """
 
+def frames_check(out, expect):
+    """Backup when no Gemini model can watch the video: another AI looks at 8 still frames against the expected content.
+    Speech was already checked word by word (Whisper + the name check) while the voices were made."""
+    import base64, subprocess, writer
+    dur = float(subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', os.path.join(out, 'episode.mp4')],
+                               capture_output=True, text=True).stdout.strip() or 60)
+    imgs = []
+    for k in range(8):
+        f = os.path.join(out, f'chk{k}.jpg')
+        subprocess.run(['ffmpeg', '-v', 'error', '-y', '-ss', f'{dur * (k + 0.5) / 8:.2f}', '-i', os.path.join(out, 'episode.mp4'), '-frames:v', '1', '-vf', 'scale=540:-1', f], check=True)
+        imgs.append(base64.b64encode(open(f, 'rb').read()).decode())
+    ask_ = ('These are 4 still frames, in order, from a vertical news video. Expected on-screen content: ' + json.dumps(expect['stories'], ensure_ascii=False) +
+            '. Report only clear VISUAL problems: text overlapping or cut off, a label/number that contradicts the expected chips, a map pin label that '
+            "doesn't match the expected place, a graphic or gory image, broken or blank frames. Return JSON {\"problems\": [{\"frame\": n, \"severity\": \"minor|major\", \"detail\": \"one short sentence\"}]} "
+            '(empty list if fine).')
+    probs = []
+    for half in (imgs[:4], imgs[4:]):
+        msg = [{'role': 'user', 'content': [{'type': 'text', 'text': ask_}] + [{'type': 'image_url', 'image_url': {'url': 'data:image/jpeg;base64,' + b}} for b in half]}]
+        v = None
+        for key, model in (('GROQ_API_KEY', 'qwen/qwen3.8-27b'), ('OPENROUTER_API_KEY', 'google/gemma-4-31b-it:free'), ('GEMINI_API_KEY', 'gemini-3.5-flash-lite')):
+            prov = next((p for p in writer.PROVIDERS if p[0] == key), None)
+            if not prov or not os.environ.get(key): continue
+            for attempt in range(2):
+                try: v = writer._call(prov[1], os.environ[key], model, msg); break
+                except Exception as e: print(f'  backup check: {model} {str(e)[:60]}', flush=True); time.sleep(15)
+            if v is not None: break
+        if v is None: raise RuntimeError('no AI could look at the frames either')
+        probs += [{'time': '-', 'type': 'visual', 'severity': p.get('severity', 'minor'), 'detail': str(p.get('detail', ''))[:220]} for p in v.get('problems', [])]
+    return probs
+
 if __name__ == '__main__':
     out = sys.argv[1]; res = {'ok': False, 'checked': False, 'problems': []}
     try:
@@ -95,6 +129,11 @@ if __name__ == '__main__':
             probs.append(p_)
         res = {'checked': True, 'problems': probs, 'ok': bool(v.get('ok')) and not any(p.get('severity') == 'major' for p in probs)}
     except Exception as e:
-        res['problems'] = [{'time': '-', 'type': 'check', 'severity': 'major', 'detail': f'AI check could not run: {e}'[:300]}]
+        print('  review: video check failed -', str(e)[:120], '- trying the backup frame check', flush=True)
+        try:
+            probs = frames_check(out, expect)
+            res = {'checked': True, 'backup': True, 'problems': probs, 'ok': not any(p.get('severity') == 'major' for p in probs)}
+        except Exception as e2:
+            res['problems'] = [{'time': '-', 'type': 'check', 'severity': 'major', 'detail': f'AI check could not run: {e} / backup: {e2}'[:300]}]
     json.dump(res, open(os.path.join(out, 'review.json'), 'w'), ensure_ascii=False, indent=1)
     print(json.dumps(res, ensure_ascii=False)[:2000])

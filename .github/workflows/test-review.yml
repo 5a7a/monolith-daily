@@ -1,0 +1,18 @@
+name: test-review
+on:
+  workflow_dispatch:
+    inputs:
+      run_id: { description: 'episode run id', required: true }
+permissions: { actions: read, contents: read }
+jobs:
+  t:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: episode, path: out, run-id: '${{ inputs.run_id }}', github-token: '${{ github.token }}' }
+      - name: Backup check only (Gemini switched off on purpose)
+        env: { GROQ_API_KEY: '${{ secrets.GROQ_API_KEY }}', OPENROUTER_API_KEY: '${{ secrets.OPENROUTER_API_KEY }}' }
+        run: |
+          mkdir -p ~/ff && curl -sSfL --retry 5 -o /tmp/ff.tar.xz https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz && tar -xJf /tmp/ff.tar.xz -C ~/ff --strip-components=1 && export PATH=~/ff/bin:$PATH
+          python pipeline/review.py out

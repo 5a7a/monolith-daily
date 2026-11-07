@@ -39,7 +39,7 @@ def _call(base, key, model, messages, strict=True):
     if strict: q['response_format'] = {'type': 'json_object'}
     body = json.dumps(q).encode()
     req = urllib.request.Request(base + '/chat/completions', body, {'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json', 'User-Agent': UA})
-    r = json.load(urllib.request.urlopen(req, timeout=100)); txt = r['choices'][0]['message'].get('content') or ''
+    r = json.load(urllib.request.urlopen(req, timeout=70)); txt = r['choices'][0]['message'].get('content') or ''
     if '{' not in txt: raise ValueError('empty reply')
     return json.JSONDecoder().raw_decode(txt[txt.find('{'):])[0]   # the first JSON object, ignoring anything after it
 
