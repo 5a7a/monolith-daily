@@ -43,6 +43,7 @@ def _call(base, key, model, messages, strict=True):
     if '{' not in txt: raise ValueError('empty reply')
     return json.JSONDecoder().raw_decode(txt[txt.find('{'):])[0]   # the first JSON object, ignoring anything after it
 
+DOWN = set()   # models that hung or were overloaded earlier in this run: skipped on the first pass of later calls
 def chat(messages, skip=None, passes=2):
     import time, urllib.error
     err = []
@@ -55,6 +56,7 @@ def chat(messages, skip=None, passes=2):
                 if not models: extras = True; models = _gemini_extras(base, os.environ[key], tried); continue
                 model = models.pop(0)
                 if model in tried or not model: continue
+                if p == 0 and model in DOWN: continue
                 tried.add(model); strict = True
                 for attempt in range(3):
                     t0 = time.time()
@@ -70,7 +72,7 @@ def chat(messages, skip=None, passes=2):
                             if p == 0: break
                             time.sleep(30); continue
                         if e.code in (500, 502, 503, 504):                 # busy: first time round move straight on to the next AI
-                            if p == 0: break
+                            if p == 0: DOWN.add(model); break
                             time.sleep(15 * (attempt + 1)); continue
                         if e.code == 400 and strict: strict = False; continue          # its JSON mode choked or isn't supported: ask plainly
                         if e.code in (400, 404) and 'model' in detail.lower() and not models:              # model retired: ask what exists
@@ -78,7 +80,7 @@ def chat(messages, skip=None, passes=2):
                         break
                     except Exception as e:
                         err.append(f'{key} {model}: {e}'); print(f'    ai: {model} failed after {time.time() - t0:.0f}s: {str(e)[:80]}', flush=True)
-                        if p == 0 and time.time() - t0 > 60: break              # hung / too slow: move on to the next AI
+                        if p == 0 and time.time() - t0 > 60: DOWN.add(model); break   # hung / too slow: move on, and skip it for the rest of this run
                         strict = False; time.sleep(5)
     raise RuntimeError('no LLM provider worked: ' + ' | '.join(err[-6:]))
 
