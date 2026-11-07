@@ -118,7 +118,7 @@ Return JSON:
  "hook":"...","viewer_question":"...?",
  "hashtags":["5 specific hashtags, no #reels/#explore"]}"""
 
-CHECK = """You are a strict fact checker. For each story, list every factual claim in its answer and its caption_line (numbers, names, places, causes,
+CHECK = """You are a strict fact checker. Different spellings of the same name (Chernobyl/Chornobyl, Kyiv/Kiev) are not errors. For each story, list every factual claim in its answer and its caption_line (numbers, names, places, causes,
 who said what). Each claim must be directly supported by THAT story's article text. Also check that "place" fits the story: it may be
 inferred (a WHO decision -> Geneva) and need not be named in the text, but flag it if it is clearly unrelated to where the
 events happen (e.g. just the outlet's home country). Check the question fits the story. Naming the story's own outlet as the
@@ -141,6 +141,11 @@ def write(cands, tries=8, covered=()):
         s, used = chat(msgs[:2] + msgs[-2:] if len(msgs) > 4 else msgs)   # only the latest draft + feedback: keeps requests small
         for x in s.get('stories', []):                    # label lengths are fixed in code, at a word break
             x['article_id'] = str(x.get('article_id', '')).strip()
+            for f in ('question', 'answer', 'place', 'rundown', 'caption_line'):          # house spellings (Chornobyl -> Chernobyl)
+                if isinstance(x.get(f), str): x[f] = house(x[f])
+            x['chips'] = [[house(str(c[0])), *c[1:]] for c in x.get('chips', []) if c]
+            for f in ('hook', 'viewer_question'):
+                if isinstance(s.get(f), str): s[f] = house(s[f])
             x['place'], x['rundown'] = _trim(str(x.get('place', '')), 22), _trim(str(x.get('rundown', '')), 40)
             x['chips'] = [[_chip_digits(str(c[0])), *c[1:]] for c in x.get('chips', []) if c]
         probs = validate(s, scands, spread=attempt < 2)   # region spread is wanted, but never worth losing the episode
@@ -244,6 +249,11 @@ def _chip_digits(t):   # chips show digits: 'FIFTY KILLED' -> '50 KILLED', 'SEVE
             out.append(nums[0] if nums else str(VAL[seq[0].lower()])); i = j
         else: out.append(words[i]); i += 1
     return re.sub(r'(\d) PERCENT\b', r'\1%', ' '.join(out), flags=re.I)
+
+_SP = {k: v for k, v in json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'spellings.json'))).items() if not k.startswith('_')}
+def house(t):   # our spelling of names, whatever the outlet wrote
+    for a, b in _SP.items(): t = re.sub(r'\b' + re.escape(a) + r'\b', b, t)
+    return t
 
 def _country(x):   # 'ZAPORIZHZHIA, UKRAINE' -> 'UKRAINE'; rundown 'UKRAINE · ...' as a fallback
     return (str(x.get('place', '')).split(',')[-1] or str(x.get('rundown', '')).split('·')[0]).strip().upper()
