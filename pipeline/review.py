@@ -109,7 +109,6 @@ def frames_check(out, expect):
 if __name__ == '__main__':
     out = sys.argv[1]; res = {'ok': False, 'checked': False, 'problems': []}
     try:
-        if not KEY: raise RuntimeError('GEMINI_API_KEY missing')
         script = json.load(open(os.path.join(out, 'script.json'))); ep = json.load(open(os.path.join(out, 'episode.json')))
         expect = {'spoken_lines': [dict(index=i, **L) for i, L in enumerate(json.load(open(os.path.join(out, 'lines.json'))))],
                   'stories': [{'outlet': s['outlet'], 'grade': s['grade'], 'headline': s['headline'], 'chips': [c[0] for c in s['chips']],
@@ -118,6 +117,7 @@ if __name__ == '__main__':
                   'story_index_note': 'stories[0] is story 1 on screen',
                   'article_facts': [{'outlet': s['outlet'], 'text': a.get('title', '') + '. ' + a.get('body', '')} for s, a in
                                     zip(ep['stories'], json.load(open(os.path.join(out, 'articles.json'))))]}
+        if not KEY: raise RuntimeError('GEMINI_API_KEY missing')
         f = upload(os.path.join(out, 'episode.mp4'))
         v = ask(f, PROMPT + json.dumps(expect, ensure_ascii=False))
         probs = []
