@@ -24,8 +24,14 @@ if not os.environ.get('IG_DRY'): already()
 
 def post():
     c = call('POST', f'{G}/{IG}/media?upload_type=resumable', {'media_type': 'REELS', 'caption': meta['caption'], 'is_ai_generated': 'true'})
-    call('POST', c['uri'], headers={'offset': '0', 'file_size': str(os.path.getsize(mp4)), 'Content-Type': 'application/octet-stream'},
-         body=open(mp4, 'rb').read())   # raw bytes: without this content type the upload server rejects the video
+    data = open(mp4, 'rb').read()
+    for k in range(3):   # send the bytes again to the same container before giving up on it
+        try:
+            call('POST', c['uri'], headers={'offset': '0', 'file_size': str(len(data)), 'Content-Type': 'application/octet-stream'}, body=data); break
+        except Retry as e:
+            print(f'  upload refused ({str(e)[-60:]}), sending again', flush=True)
+            if k == 2: raise
+            time.sleep(15)
     for _ in range(20):   # Meta recommends polling about once a minute; reels usually finish in 30s-2min
         time.sleep(30); st = call('GET', f"{G}/{c['id']}?fields=status_code,status")
         if st.get('status_code') == 'FINISHED': break
@@ -37,10 +43,11 @@ def post():
     except Retry: link = ''                                   # it's posted; a missing link must not cause a second upload
     done(link)
 
-for attempt in range(3):   # a stuck or failed upload starts again from scratch, twice
+TRIES = 8   # Instagram's upload server randomly refuses Reels ('ProcessingFailedError') and accepts the same file on a later try
+for attempt in range(TRIES):
     try: post()
     except Retry as e:
         print(f'attempt {attempt + 1} failed: {e}', flush=True)
         if 'OAuth' in str(e) or '190' in str(e): raise SystemExit('Instagram key not accepted (expired or revoked): ' + str(e))
-        time.sleep(60); already()                              # it may have gone through after all
-raise SystemExit('could not post after 3 attempts')
+        time.sleep(30); already()                              # it may have gone through after all
+raise SystemExit(f'could not post after {TRIES} attempts')
