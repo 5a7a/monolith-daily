@@ -1,5 +1,5 @@
 # Weekly health check: is every free service and key still working? Sends one short Telegram message.
-import os, sys, json, urllib.request
+import os, sys, json, urllib.request, urllib.error
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import writer, feed
 ok, bad = [], []
@@ -28,6 +28,14 @@ if os.environ.get('IG_TOKEN'):
         if 'instagram_content_publish' not in d.get('scopes', []): raise RuntimeError('key is missing the instagram_content_publish permission')
         return True
     check('Instagram key', ig)
+if os.environ.get('WORKER_GH_TOKEN'):
+    def worker_key():   # the key the Worker uses to start episodes: a no-op event must be accepted
+        req = urllib.request.Request(f"https://api.github.com/repos/{os.environ.get('GITHUB_REPOSITORY', '5a7a/monolith-daily')}/dispatches",
+              json.dumps({'event_type': 'key-check'}).encode(), {'Authorization': 'Bearer ' + os.environ['WORKER_GH_TOKEN'],
+              'Accept': 'application/vnd.github+json', 'User-Agent': 'monolith-health'}, method='POST')
+        try: return urllib.request.urlopen(req, timeout=30).status == 204
+        except urllib.error.HTTPError as e: raise RuntimeError(f'GitHub said {e.code} - make a new WORKER_GH_TOKEN and run deploy-worker')
+    check("Worker's GitHub key", worker_key)
 import telegram
 _wurl, _ = telegram.worker_link()
 if _wurl:
