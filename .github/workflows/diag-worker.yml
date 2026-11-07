@@ -1,0 +1,33 @@
+name: diag-worker
+on: workflow_dispatch
+permissions: { contents: read }
+jobs:
+  d:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+      WGH: ${{ secrets.WORKER_GH_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cron schedules on the Worker
+        run: curl -s "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/monolith-daily/schedules" -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" | python3 -m json.tool
+      - name: Can the Worker's GitHub key start a run? (no-op event)
+        run: |
+          curl -s -o /tmp/r.txt -w "dispatch status %{http_code}\n" -X POST https://api.github.com/repos/5a7a/monolith-daily/dispatches \
+            -H "Authorization: Bearer $WGH" -H "Accept: application/vnd.github+json" -H "User-Agent: diag" -d '{"event_type":"diag-noop"}'; cat /tmp/r.txt; echo
+          curl -sI https://api.github.com/repos/5a7a/monolith-daily -H "Authorization: Bearer $WGH" -H "User-Agent: diag" | grep -iE "^HTTP|expiration"
+      - name: Worker storage (retries waiting)
+        working-directory: worker
+        run: |
+          id=$(npx --yes wrangler@4.156.2 kv namespace list | python3 -c "import json,sys; print(next((n['id'] for n in json.load(sys.stdin) if 'STATE' in n['title']), ''))")
+          npx --yes wrangler@4.156.2 kv key list --namespace-id "$id" --remote
+      - name: Recent Worker invocations (cron) from analytics
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.request, datetime as dt
+          q = {"query": "query($a:String!,$s:Time!,$e:Time!){viewer{accounts(filter:{accountTag:$a}){workersInvocationsAdaptive(limit:50,filter:{scriptName:\"monolith-daily\",datetime_geq:$s,datetime_leq:$e},orderBy:[datetimeHour_ASC]){sum{requests errors} dimensions{datetimeHour status}}}}}",
+               "variables": {"a": os.environ['CLOUDFLARE_ACCOUNT_ID'], "s": (dt.datetime.utcnow()-dt.timedelta(hours=16)).strftime('%Y-%m-%dT%H:%M:%SZ'), "e": dt.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')}}
+          r = urllib.request.urlopen(urllib.request.Request('https://api.cloudflare.com/client/v4/graphql', json.dumps(q).encode(), {'Authorization': 'Bearer ' + os.environ['CLOUDFLARE_API_TOKEN'], 'Content-Type': 'application/json'}))
+          print(json.dumps(json.load(r), indent=1)[:3000])
+          PY
