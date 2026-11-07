@@ -31,7 +31,10 @@ def verdict(out):
     mins = int(os.environ.get('AUTO_POST_MINUTES', '30')); when = f'{mins // 60}h{mins % 60:02d}' if mins >= 60 else f'{mins} min'
     if len(uniq) >= HOLD_AT:
         r = {**r, 'ok': False, 'problems': r.get('problems', []) + [{'type': 'pronunciation', 'severity': 'major', 'detail': f'{len(uniq)} names may be mispronounced: ' + ', '.join(uniq)}]}
-    if r.get('ok'):
+    if os.environ.get('TEST_RUN'):
+        r = {**r, 'ok': False}
+    if os.environ.get('TEST_RUN'): head = '🧪 TEST RUN: this one will not be posted.'
+    elif r.get('ok'):
         head = f"✅ AI check passed. Auto-posts in {when} if you don't answer."
         if uniq: head += f"\n⚠️ Name{'s' if len(uniq) > 1 else ''} the voice may have said slightly wrong: {', '.join(uniq)}. Listen if you can; it will still post."
     else:
@@ -57,6 +60,7 @@ if __name__ == '__main__':
         extra = (probs + '\n\n' if probs else '') + 'SOURCES\n' + meta['sources']
         api('sendMessage', {'chat_id': chat, 'text': extra[:4000], 'reply_to_message_id': msg['message_id']})
         url, secret = worker_link()
+        if os.environ.get('TEST_RUN'): url = ''                  # test run: never registered for auto-post
         if url and secret:   # register the episode with the Worker, which auto-posts it later if nobody answers
             body = json.dumps({'run_id': run, 'ai_ok': bool(r.get('ok')), 'message_id': msg['message_id'], 'chat_id': chat}).encode()
             for attempt in range(3):

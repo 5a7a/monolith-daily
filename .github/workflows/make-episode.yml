@@ -1,7 +1,9 @@
 name: make-episode
 on:
   repository_dispatch: { types: [make-episode] }   # fired by the Cloudflare Worker on schedule, or by the Redo button
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      test: { description: 'Test run: send to Telegram marked TEST, never posts', type: boolean, default: false }
 concurrency: { group: episode, cancel-in-progress: false }
 permissions: { contents: write }
 jobs:
@@ -90,7 +92,9 @@ jobs:
             !out/still_*.png
       - name: Send to Telegram for approval
         env: { TG_BOT_TOKEN: '${{ secrets.TG_BOT_TOKEN }}', TG_CHAT_ID: '${{ secrets.TG_CHAT_ID }}', WORKER_URL: '${{ secrets.WORKER_URL }}', PIPE_SECRET: '${{ secrets.PIPE_SECRET }}', AUTO_POST_MINUTES: '30' }
-        run: python pipeline/telegram.py review out ${{ github.run_id }}
+        run: |
+          if [ "${{ inputs.test }}" = "true" ]; then export WORKER_URL=none TEST_RUN=1; fi
+          python pipeline/telegram.py review out ${{ github.run_id }}
       - name: Report failure
         if: failure() || cancelled()
         env: { TG_BOT_TOKEN: '${{ secrets.TG_BOT_TOKEN }}', TG_CHAT_ID: '${{ secrets.TG_CHAT_ID }}' }

@@ -103,14 +103,20 @@ RULES
   the outlet's home country. A WHO decision -> "GENEVA, SWITZERLAND"; an outbreak in Congo -> "DR CONGO". lat/lon = that place.
 - question: asks about the event's own place or subject ("What about the Ebola outbreak?"), never the outlet's country.
 - rundown: "COUNTRY  ·  2-4 WORD SUMMARY" in caps, e.g. "UKRAINE  ·  STRIKE ON AID HUB".
-- keys: 1-3 words from the answer to highlight (numbers and the key noun).\n- image_prompt: one sentence describing a simple symbolic scene for the story (objects and setting only, no real people, no text).
+- keys: 1-3 words from the answer to highlight (numbers and the key noun).
+- caption_line: one line for the Instagram caption about THIS story, 50-90 characters, written for search: the key names, place and the
+  fact (digits allowed here, e.g. "Russian strike on Komyshuvakha: death toll rises to 53"). Only facts from the article.
+- hook (top level): the caption's opening line, 40-80 characters, about the most important story of this episode, specific, no clickbait.
+- viewer_question (top level): one neutral, open-ended question about this episode's news that invites real discussion, under 100
+  characters (e.g. "How should airports respond to a third wave of threats in a week?"). Never ask people to comment a word or emoji,
+  to tag, like, share or follow, and never take a side on a political question.\n- image_prompt: one sentence describing a simple symbolic scene for the story (objects and setting only, no real people, no text).
 Return JSON:
 {"stories":[{"article_id":"<id>","question":"...","answer":"...","place":"...","lat":0.0,"lon":0.0,
-  "topic":"...","chips":[["LABEL","word"]],"rundown":"...","keys":["..."],"image_prompt":"..."}, ... 4 items],
- "caption":"Instagram caption: first line with the key search words, one short line per story, then 'Send this to someone who needs to know.'",
+  "topic":"...","chips":[["LABEL","word"]],"rundown":"...","keys":["..."],"caption_line":"...","image_prompt":"..."}, ... 4 items],
+ "hook":"...","viewer_question":"...?",
  "hashtags":["5 specific hashtags, no #reels/#explore"]}"""
 
-CHECK = """You are a strict fact checker. For each story, list every factual claim in its answer (numbers, names, places, causes,
+CHECK = """You are a strict fact checker. For each story, list every factual claim in its answer and its caption_line (numbers, names, places, causes,
 who said what). Each claim must be directly supported by THAT story's article text. Also check that "place" fits the story: it may be
 inferred (a WHO decision -> Geneva) and need not be named in the text, but flag it if it is clearly unrelated to where the
 events happen (e.g. just the outlet's home country). Check the question fits the story. Naming the story's own outlet as the
@@ -144,14 +150,16 @@ def write(cands, tries=8, covered=()):
                     aid = s['stories'][i].get('article_id'); fails[aid] = fails.get(aid, 0) + 1
                     if fails[aid] >= 2: last += f'\nStory {i + 1} keeps failing: replace it with a different candidate (not {aid}).'
         else:
-            nprob = [f"story {n + 1}: the answer says {v}, but that number is not in the article"
+            nprob = [f"story {n + 1}: caption_line uses {v}, which is not in the article" for n, x in enumerate(s['stories'])
+                     for v in re.findall(r'\d[\d,.]*\d|\d', str(x.get('caption_line', ''))) if not 1900 <= float(v.replace(',', '')) <= 2100 and not _in_article(v.replace(',', ''), byid[x['article_id']]['title'] + ' ' + _lead(byid[x['article_id']]['body']))]
+            nprob += [f"story {n + 1}: the answer says {v}, but that number is not in the article"
                      for n, x in enumerate(s['stories']) for v in _numbers(x['answer'])
                      if not _in_article(v, byid[x['article_id']]['title'] + ' ' + _lead(byid[x['article_id']]['body']))]
             if nprob:                                    # every number has to come from the article: checked in code, not by an AI
                 print('  writer: numbers ->', nprob, flush=True); last = ('Fix these: ' + '; '.join(nprob) +
                     '. Use only numbers stated in the article text. Return the full JSON again.'); msgs.append({'role': 'assistant', 'content': json.dumps(s, ensure_ascii=False)}); continue
             pack = [{'story': n + 1, 'outlet': byid[x['article_id']]['source'], 'article': byid[x['article_id']]['title'] + '. ' + _lead(byid[x['article_id']]['body']),
-                     'question': x['question'], 'answer': x['answer'], 'place': x['place']} for n, x in enumerate(s['stories'])]
+                     'question': x['question'], 'answer': x['answer'], 'caption_line': x.get('caption_line', ''), 'place': x['place']} for n, x in enumerate(s['stories'])]
             cm = [{'role': 'system', 'content': CHECK}, {'role': 'user', 'content': json.dumps(pack, ensure_ascii=False)}]
             try: fc, _ = chat(cm, skip=used)            # a different AI checks the writer's work
             except RuntimeError: fc, _ = chat(cm)        # none other available: same provider, fresh conversation
@@ -270,6 +278,12 @@ def validate(s, cands, spread=True):
             if spread and sum(1 for y in st if _country(y) == _country(x)) > 2: p.append(f'story {n}: more than 2 stories from {_country(x)} - swap one for a different region')
             if ',' not in str(x.get('place', '')) or re.search(r'\b(CYBERSPACE|ONLINE|GLOBAL|WORLDWIDE|INTERNET)\b', str(x.get('place', '')).upper()):
                 p.append(f"story {n}: place must be a real location as 'CITY, COUNTRY' or 'REGION, COUNTRY' (for an online/company story use the company's home city)")
+            if n == 1:
+                vq = str(s.get('viewer_question', '')).strip()
+                if vq and (not vq.endswith('?') or len(vq) > 110 or re.search(r'\b(comment|tag|share|like|follow|below|emoji|type)\b', vq, re.I)):
+                    p.append('viewer_question must be one open question under 100 characters, without asking people to comment, tag, share, like or follow')
+            cl = str(x.get('caption_line', '')).strip()
+            if not 30 <= len(cl) <= 110: p.append(f'story {n}: caption_line must be one line of 50-90 characters about this story')
             if not x['answer'].rstrip().endswith(('.', '!', '?')): p.append(f'story {n}: the answer must end with a full sentence')
             if not 15 <= len(x["answer"].split()) <= 30: p.append(f'story {n}: answer must be 20-30 words, it has {len(x["answer"].split())}')
             if not (-90 <= float(x['lat']) <= 90 and -180 <= float(x['lon']) <= 180): p.append(f'story {n}: bad coordinates')
