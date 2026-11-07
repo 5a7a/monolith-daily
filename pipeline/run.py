@@ -239,11 +239,18 @@ places = []
 for x in S['stories']:
     c = (x.get('place', '').split(',')[-1] or x.get('rundown', '').split('·')[0]).strip().title()
     if c and c not in places: places.append(c)
-lines = [f"{slot.title()} Briefing · {now:%a} {now.day} {now:%b}: " + ', '.join(places), '']
+lines = [f"World news today · {slot.title()} Briefing, {now:%a} {now.day} {now:%b}: " + ', '.join(places), '']
 for x in S['stories']:
     country, _, what = str(x.get('rundown', '')).partition('·')
     lines.append(f"▸ {country.strip().title()}: {_sent(what or x['question'])}")
-tags = ['worldnews', 'news'] + [h.lstrip('#').lower() for h in S.get('hashtags', []) if h.lstrip('#').lower() not in ('worldnews', 'news')]
+# Instagram allows 5 hashtags: 2 broad ones + the countries in the stories (exact, searched terms), topped up by the writer's
+SHORT = {'united states': 'usa', 'united kingdom': 'uk', 'united arab emirates': 'uae', 'south korea': 'southkorea', 'north korea': 'northkorea',
+         'palestine': 'palestine', 'gaza, palestine': 'gaza', 'european union': 'eu'}
+tags = ['worldnews', 'news']
+for c in places:
+    t = SHORT.get(c.lower(), re.sub(r'[^a-z0-9]', '', c.lower()))
+    if t and t not in tags: tags.append(t)
+tags += [h for h in (re.sub(r'[^a-z0-9]', '', h.lower()) for h in S.get('hashtags', [])) if h and h not in tags]
 lines += ['', 'Send this to someone who needs to know.', 'Every story, with its sources: link in bio.', '',
           ' '.join('#' + h for h in tags[:5]), '', 'AI voices · VCTK corpus']
 caption = '\n'.join(lines)
