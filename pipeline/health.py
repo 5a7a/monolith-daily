@@ -18,8 +18,16 @@ check('Monolith feed', lambda: len(feed.candidates(24, 10)) > 0)
 check('Kokoro voice files', lambda: urllib.request.urlopen(urllib.request.Request(
     'https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin', method='HEAD'), timeout=30).status == 200)
 if os.environ.get('IG_TOKEN'):
-    check('Instagram key', lambda: 'id' in json.load(urllib.request.urlopen(urllib.request.Request(
-        f"https://graph.facebook.com/{os.environ['IG_USER_ID']}?fields=id,username", headers={'Authorization': 'OAuth ' + os.environ['IG_TOKEN']}), timeout=30)))
+    def ig():
+        tok = os.environ['IG_TOKEN']; G = 'https://graph.facebook.com'
+        me = json.load(urllib.request.urlopen(urllib.request.Request(f"{G}/{os.environ['IG_USER_ID']}?fields=id,username", headers={'Authorization': 'OAuth ' + tok}), timeout=30))
+        d = json.load(urllib.request.urlopen(f"{G}/debug_token?input_token={tok}&access_token={tok}", timeout=30)).get('data', {})
+        exp = d.get('expires_at', -1); print('Instagram:', '@' + me.get('username', '?'), '| key type:', d.get('type'), '| expires:', 'never' if exp == 0 else exp,
+                                                '| can post:', 'instagram_content_publish' in d.get('scopes', []))
+        if exp not in (0, None): raise RuntimeError('this key expires - it should be the Page key (Expires: Never)')
+        if 'instagram_content_publish' not in d.get('scopes', []): raise RuntimeError('key is missing the instagram_content_publish permission')
+        return True
+    check('Instagram key', ig)
 import telegram
 _wurl, _ = telegram.worker_link()
 if _wurl:
