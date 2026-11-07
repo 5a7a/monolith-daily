@@ -82,28 +82,28 @@ def frames_check(out, expect):
     import base64, subprocess, writer
     dur = float(subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', os.path.join(out, 'episode.mp4')],
                                capture_output=True, text=True).stdout.strip() or 60)
-    imgs = []
-    for k in range(8):
-        f = os.path.join(out, f'chk{k}.jpg')
-        subprocess.run(['ffmpeg', '-v', 'error', '-y', '-ss', f'{dur * (k + 0.5) / 8:.2f}', '-i', os.path.join(out, 'episode.mp4'), '-frames:v', '1', '-vf', 'scale=540:-1', f], check=True)
-        imgs.append(base64.b64encode(open(f, 'rb').read()).decode())
-    ask_ = ('These are 4 still frames, in order, from a vertical news video. Expected on-screen content: ' + json.dumps(expect['stories'], ensure_ascii=False) +
+    grid = os.path.join(out, 'check_grid.jpg')   # 8 frames in one picture (some AIs take only one image per request)
+    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', os.path.join(out, 'episode.mp4'), '-vf', f'fps=8/{dur:.2f},scale=360:-1,tile=4x2',
+                    '-frames:v', '1', '-q:v', '4', grid], check=True)
+    b = base64.b64encode(open(grid, 'rb').read()).decode()
+    ask_ = ('This picture shows 8 still frames from a vertical news video, in reading order (frame 1 top-left, frame 8 bottom-right). '
+            'Expected on-screen content: ' + json.dumps(expect['stories'], ensure_ascii=False) +
             '. Report only clear VISUAL problems: text overlapping or cut off, a label/number that contradicts the expected chips, a map pin label that '
             "doesn't match the expected place, a graphic or gory image, broken or blank frames. Return JSON {\"problems\": [{\"frame\": n, \"severity\": \"minor|major\", \"detail\": \"one short sentence\"}]} "
             '(empty list if fine).')
-    probs = []
-    for half in (imgs[:4], imgs[4:]):
-        msg = [{'role': 'user', 'content': [{'type': 'text', 'text': ask_}] + [{'type': 'image_url', 'image_url': {'url': 'data:image/jpeg;base64,' + b}} for b in half]}]
-        v = None
-        for key, model in (('GROQ_API_KEY', 'qwen/qwen3.8-27b'), ('OPENROUTER_API_KEY', 'google/gemma-4-31b-it:free'), ('GEMINI_API_KEY', 'gemini-3.5-flash-lite')):
-            prov = next((p for p in writer.PROVIDERS if p[0] == key), None)
-            if not prov or not os.environ.get(key): continue
-            for attempt in range(2):
-                try: v = writer._call(prov[1], os.environ[key], model, msg); break
-                except Exception as e: print(f'  backup check: {model} {str(e)[:60]}', flush=True); time.sleep(15)
-            if v is not None: break
-        if v is None: raise RuntimeError('no AI could look at the frames either')
-        probs += [{'time': '-', 'type': 'visual', 'severity': p.get('severity', 'minor'), 'detail': str(p.get('detail', ''))[:220]} for p in v.get('problems', [])]
+    msg = [{'role': 'user', 'content': [{'type': 'text', 'text': ask_}, {'type': 'image_url', 'image_url': {'url': 'data:image/jpeg;base64,' + b}}]}]
+    v = None
+    for key, model in (('GROQ_API_KEY', 'qwen/qwen3.8-27b'), ('OPENROUTER_API_KEY', 'google/gemma-4-31b-it:free'), ('GEMINI_API_KEY', 'gemini-3.5-flash-lite')):
+        prov = next((p for p in writer.PROVIDERS if p[0] == key), None)
+        if not prov or not os.environ.get(key): continue
+        for attempt in range(3):
+            try: v = writer._call(prov[1], os.environ[key], model, msg); break
+            except urllib.error.HTTPError as e: print(f'  backup check: {model} HTTP {e.code} {e.read().decode("utf-8", "ignore")[:150]}', flush=True); time.sleep(20)
+            except Exception as e: print(f'  backup check: {model} {str(e)[:80]}', flush=True); time.sleep(20)
+        if v is not None: break
+    if v is None: raise RuntimeError('no AI could look at the frames either')
+    probs = [{'time': f"frame {p.get('frame', '?')}", 'type': 'visual', 'severity': p.get('severity', 'minor'), 'detail': str(p.get('detail', ''))[:220]}
+             for p in v.get('problems', [])]
     return probs
 
 if __name__ == '__main__':
