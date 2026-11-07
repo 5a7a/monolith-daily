@@ -146,7 +146,7 @@ def write(cands, tries=8, covered=()):
             x['chips'] = [[house(str(c[0])), *c[1:]] for c in x.get('chips', []) if c]
             for f in ('hook', 'viewer_question'):
                 if isinstance(s.get(f), str): s[f] = house(s[f])
-            x['place'], x['rundown'] = _trim(str(x.get('place', '')), 22), _trim(str(x.get('rundown', '')), 40)
+            x['place'], x['rundown'] = _place(str(x.get('place', ''))), _trim(str(x.get('rundown', '')), 40)
             x['chips'] = [[_chip_digits(str(c[0])), *c[1:]] for c in x.get('chips', []) if c]
         probs = validate(s, scands, spread=attempt < 2)   # region spread is wanted, but never worth losing the episode
         if probs:
@@ -263,6 +263,15 @@ def _lead(t, n=600):   # first sentences of an article, up to ~n characters
     if len(t) <= n: return t
     cut = t[:n]; m = list(re.finditer(r'[.!?]["\u201d\']?(?=\s)', cut))
     return cut[:m[-1].end()] if m else cut.rsplit(' ', 1)[0]
+
+SHORT_C = {'UNITED STATES': 'USA', 'UNITED KINGDOM': 'UK', 'UNITED ARAB EMIRATES': 'UAE', 'DEMOCRATIC REPUBLIC OF THE CONGO': 'DR CONGO',
+           'CENTRAL AFRICAN REPUBLIC': 'CAR', 'BOSNIA AND HERZEGOVINA': 'BOSNIA', 'SAUDI ARABIA': 'SAUDI ARABIA', 'SOUTH KOREA': 'S. KOREA', 'NORTH KOREA': 'N. KOREA'}
+def _place(t, n=22):   # 'WASHINGTON, UNITED STATES' -> 'WASHINGTON, USA'; too long -> drop the city, never cut the country
+    t = (t or '').strip().upper()
+    for a, b in SHORT_C.items(): t = re.sub(r'\b' + a + r'\b', b, t)
+    if len(t) <= n: return t
+    city, _, country = t.rpartition(',')
+    return country.strip()[:n] if country.strip() else t[:n]
 
 def _trim(t, n):
     t = (t or '').strip()

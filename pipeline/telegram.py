@@ -45,7 +45,7 @@ def verdict(out):
     try: learned = json.load(open(os.path.join(out, 'learned_names.json')))
     except Exception: learned = []
     if learned: fixed = fixed + ['Learned how to say: ' + ', '.join(learned) + ' (saved for future episodes)']
-    lines = [f"• {p.get('time', '')} {p.get('type', '')} ({p.get('severity', '')}): {p.get('detail', '')}" for p in r.get('problems', [])]
+    lines = [f"• {p.get('time', '')} {p.get('type', '')} ({p.get('severity', '')}): {str(p.get('detail', ''))[:220]}" for p in r.get('problems', [])]
     notes = ('FIXED AUTOMATICALLY\n' + '\n'.join('• ' + x for x in fixed) + '\n\n' if fixed else '') + ('STILL FLAGGED\n' + '\n'.join(lines) if lines else '')
     return r, head, notes.strip()
 

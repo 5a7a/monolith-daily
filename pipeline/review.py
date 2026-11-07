@@ -1,7 +1,7 @@
 # AI quality check of the FINISHED episode (Gemini watches and listens to the mp4; free tier, same GEMINI_API_KEY).
 # Writes review.json: {"ok": bool, "problems": [...], "checked": bool}. Auto-posting only happens when ok is true.
 # Usage: python pipeline/review.py OUTDIR
-import os, sys, json, time, re, urllib.request, urllib.error
+import os, re, sys, json, time, re, urllib.request, urllib.error
 KEY = os.environ.get('GEMINI_API_KEY'); MODEL = os.environ.get('REVIEW_MODEL', os.environ.get('GEMINI_MODEL', 'gemini-3.8-flash'))
 G = 'https://generativelanguage.googleapis.com'
 
@@ -64,7 +64,10 @@ For EVERY problem also give the fix, using exactly one of these actions (line = 
   {"action": "move_pin", "story": N, "lat": 0.0, "lon": 0.0}
   {"action": "music_quieter"}
   {"action": "none"}                                         (cannot be fixed by any action above)
-Return JSON only: {"ok": true|false, "problems": [{"time": "m:ss", "type": "audio|visual|facts", "severity": "minor|major", "detail": "...", "fix": {...}}]}
+Think it through before answering, but put only your FINAL conclusions in the JSON: "detail" is one short sentence (max 25 words),
+never your working-out. If you check something and it turns out fine, leave it out. Note: amounts can differ only by currency
+(e.g. A$29m = US$20m) - that is not an error. Set "certain": true only if you are sure it is really wrong.
+Return JSON only: {"ok": true|false, "problems": [{"time": "m:ss", "type": "audio|visual|facts", "severity": "minor|major", "certain": true|false, "detail": "...", "fix": {...}}]}
 
 EXPECTED CONTENT:
 """
@@ -83,7 +86,13 @@ if __name__ == '__main__':
                                     zip(ep['stories'], json.load(open(os.path.join(out, 'articles.json'))))]}
         f = upload(os.path.join(out, 'episode.mp4'))
         v = ask(f, PROMPT + json.dumps(expect, ensure_ascii=False))
-        probs = v.get('problems') or []
+        probs = []
+        for p_ in v.get('problems') or []:
+            d = str(p_.get('detail', ''))
+            if re.search(r'everything is fine|no (actual )?(error|mismatch|problem)|is consistent|that is correct|not an error', d, re.I): continue   # it talked itself out of it
+            if p_.get('severity') == 'major' and p_.get('certain') is False: p_['severity'] = 'minor'                            # unsure -> not a blocker
+            p_['detail'] = re.split(r'\s*\((?:wait|actually|let\'s)', d, flags=re.I)[0].strip()[:220]                          # conclusion only, never the working-out
+            probs.append(p_)
         res = {'checked': True, 'problems': probs, 'ok': bool(v.get('ok')) and not any(p.get('severity') == 'major' for p in probs)}
     except Exception as e:
         res['problems'] = [{'time': '-', 'type': 'check', 'severity': 'major', 'detail': f'AI check could not run: {e}'[:300]}]
