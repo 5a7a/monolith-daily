@@ -36,6 +36,7 @@ def verdict(out):
     if os.environ.get('TEST_RUN'): head = '🧪 TEST RUN: this one will not be posted.'
     elif r.get('ok'):
         head = f"✅ AI check passed. Auto-posts in {when} if you don't answer."
+        if r.get('backup'): head += "\n(Gemini was too busy to watch the video, so a backup AI checked still frames instead.)"
         if uniq: head += f"\n⚠️ Name{'s' if len(uniq) > 1 else ''} the voice may have said slightly wrong: {', '.join(uniq)}. Listen if you can; it will still post."
     else:
         head = "⚠️ AI check found problems, so this will NOT auto-post. Tap Publish yourself if it's fine."
