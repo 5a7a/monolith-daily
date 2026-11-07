@@ -11,7 +11,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Cron schedules on the Worker
-        run: curl -s "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/monolith-daily/schedules" -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" | python3 -m json.tool
+        run: |
+          curl -s "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/monolith-daily/schedules" -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" | python3 -m json.tool
       - name: Can the Worker's GitHub key start a run? (no-op event)
         run: |
           curl -s -o /tmp/r.txt -w "dispatch status %{http_code}\n" -X POST https://api.github.com/repos/5a7a/monolith-daily/dispatches \
