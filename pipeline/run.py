@@ -232,7 +232,21 @@ subprocess.run(['ffmpeg', '-v', 'error', '-y', '-f', 'concat', '-safe', '0', '-i
                 '-r', '30', '-g', '60', '-c:a', 'aac', '-b:a', '128k', '-ar', '48000', '-shortest', '-movflags', '+faststart', mp4], check=True)
 subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', mp4, '-vf', 'scale=720:1280', '-c:v', 'libx264', '-preset', 'medium', '-crf', '26',
                 '-c:a', 'aac', '-b:a', '96k', '-movflags', '+faststart', os.path.join(out, 'preview.mp4')], check=True)   # Telegram bots can send max 50 MB
-caption = S['caption'].strip() + '\n\n' + ' '.join('#' + h.lstrip('#') for h in S['hashtags'][:5]) + '\n\nAI voices · VCTK corpus'   # credit the voice licence requires
+# Caption, built in code so it's always complete: search words up front (Instagram reads captions for search),
+# one line per story, a share prompt (shares count most for reach), 5 hashtags, the voice credit the licence requires.
+def _sent(t): t = t.strip().lower(); return t[:1].upper() + t[1:]
+places = []
+for x in S['stories']:
+    c = (x.get('place', '').split(',')[-1] or x.get('rundown', '').split('·')[0]).strip().title()
+    if c and c not in places: places.append(c)
+lines = [f"{slot.title()} Briefing · {now:%a} {now.day} {now:%b}: " + ', '.join(places), '']
+for x in S['stories']:
+    country, _, what = str(x.get('rundown', '')).partition('·')
+    lines.append(f"▸ {country.strip().title()}: {_sent(what or x['question'])}")
+tags = ['worldnews', 'news'] + [h.lstrip('#').lower() for h in S.get('hashtags', []) if h.lstrip('#').lower() not in ('worldnews', 'news')]
+lines += ['', 'Send this to someone who needs to know.', 'Every story, with its sources: link in bio.', '',
+          ' '.join('#' + h for h in tags[:5]), '', 'AI voices · VCTK corpus']
+caption = '\n'.join(lines)
 srcs = '\n'.join(f"• {s['outlet']}: {s['headline']}" for s in stories)
 json.dump({'caption': caption, 'sources': srcs, 'seconds': round(B.TOTAL, 1)}, open(os.path.join(out, 'meta.json'), 'w'), ensure_ascii=False)
 log('done', mp4)
