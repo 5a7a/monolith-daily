@@ -29,12 +29,22 @@ export default {
     const key = 'pending:' + run; const known = await env.STATE.get(key);
     // an episode the timer never heard about (e.g. registration failed) can still be published by its button, but only once
     if (!known && act === 'pub' && await env.STATE.get('posted:' + run)) { await tg(env, 'answerCallbackQuery', { callback_query_id: q.id, text: 'Already posted' }); return new Response('ok'); }
+    if (act === 'again') {                 // after a failed post: try once more (Instagram's own check stops a double post)
+      const k = 'again:' + run;
+      if (await env.STATE.get(k)) { await tg(env, 'answerCallbackQuery', { callback_query_id: q.id, text: 'Already trying - give it 10 minutes' }); return new Response('ok'); }
+      await env.STATE.put(k, '1', { expirationTtl: 600 });
+      await dispatch(env, 'publish', { run_id: run }).catch(() => {});
+      await tg(env, 'answerCallbackQuery', { callback_query_id: q.id, text: 'Trying to post again…' });
+      return new Response('ok');
+    }
     await env.STATE.delete(key);           // answered -> no auto-post
     let note = 'Rejected';
     if (act === 'pub') note = (await publishOnce(env, run)) ? 'Publishing…' : 'Already posted';
     if (act === 'redo') { await dispatch(env, 'make-episode', {}).catch(() => {}); note = 'Making a new version…'; }
     await tg(env, 'answerCallbackQuery', { callback_query_id: q.id, text: note });
-    await tg(env, 'editMessageReplyMarkup', { chat_id: q.message.chat.id, message_id: q.message.message_id, reply_markup: { inline_keyboard: [[{ text: note, callback_data: 'done' }]] } });
+    const rows = [[{ text: note, callback_data: 'done' }]];
+    if (act !== 'redo') rows.push([{ text: '🔁 Redo (make a new version)', callback_data: 'redo:' + run }]);   // Redo stays available
+    await tg(env, 'editMessageReplyMarkup', { chat_id: q.message.chat.id, message_id: q.message.message_id, reply_markup: { inline_keyboard: rows } });
     return new Response('ok');
   },
 };
@@ -45,7 +55,7 @@ async function autoPost(env) {
     await env.STATE.delete(k.name);
     if (p.ai_ok) {
       if (!(await publishOnce(env, p.run_id))) continue;
-      await tg(env, 'editMessageReplyMarkup', { chat_id: p.chat_id, message_id: p.message_id, reply_markup: { inline_keyboard: [[{ text: 'Auto-posting (no answer)', callback_data: 'done' }]] } });
+      await tg(env, 'editMessageReplyMarkup', { chat_id: p.chat_id, message_id: p.message_id, reply_markup: { inline_keyboard: [[{ text: 'Auto-posting (no answer)', callback_data: 'done' }], [{ text: '🔁 Redo (make a new version)', callback_data: 'redo:' + p.run_id }]] } });
     } else {
       await tg(env, 'sendMessage', { chat_id: p.chat_id, reply_to_message_id: p.message_id, text: 'No answer, and the AI check found problems, so this one was NOT posted. You can still tap Publish.' });
     }

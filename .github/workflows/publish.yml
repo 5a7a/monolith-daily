@@ -48,7 +48,7 @@ jobs:
           for i in 1 2 3; do git add pipeline/history.json && git commit -qm "Covered stories" ; git pull --rebase -q && git push -q && break; sleep 10; done
       - name: If posting failed, send the video and caption for posting by hand
         if: failure() && env.SKIP != '1'
-        env: { TG_BOT_TOKEN: '${{ secrets.TG_BOT_TOKEN }}', TG_CHAT_ID: '${{ secrets.TG_CHAT_ID }}' }
+        env: { TG_BOT_TOKEN: '${{ secrets.TG_BOT_TOKEN }}', TG_CHAT_ID: '${{ secrets.TG_CHAT_ID }}', EPISODE_RUN: '${{ github.event.client_payload.run_id }}' }
         run: python pipeline/telegram.py manual out
       - name: Confirm
         if: always() && env.SKIP != '1'

@@ -58,7 +58,9 @@ def manual(out):
     if vid:
         api('sendDocument', {'chat_id': chat, 'caption': '📲 Instagram refused the automatic post. Save this video and post it as a Reel on @monolith.news yourself.'},
             {'document': vid})
-    api('sendMessage', {'chat_id': chat, 'parse_mode': 'HTML',
+    run = os.environ.get('EPISODE_RUN', '')
+    kb = {'inline_keyboard': [[{'text': '🔄 Try posting again', 'callback_data': f'again:{run}'}, {'text': '🔁 Redo', 'callback_data': f'redo:{run}'}]]} if run else {'inline_keyboard': []}
+    api('sendMessage', {'chat_id': chat, 'parse_mode': 'HTML', 'reply_markup': json.dumps(kb),
                         'text': 'Caption (tap it to copy, then paste into Instagram; turn on the AI label under Advanced settings):\n\n<code>' + html.escape(meta['caption']) + '</code>'})
 
 if __name__ == '__main__':
