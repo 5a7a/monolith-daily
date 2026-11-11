@@ -14,6 +14,9 @@ def learned(text):
     return text
 def clean(t):
     t = re.sub(r'\[[^\]]*\]', '', t)            # sound tags: neither engine performs them
+    # dotted acronyms: each dot is read as a full stop (a pause after every letter: "U. S."), so say them without dots
+    t = re.sub(r'\b((?:[A-Z]\.){2,})(?=\s*$)', lambda m: m.group(1).replace('.', '') + '.', t)   # at the very end, keep one full stop
+    t = re.sub(r'\b((?:[A-Z]\.){2,})', lambda m: m.group(1).replace('.', ''), t)
     return re.sub(r'\s+', ' ', t).strip()
 
 _E = {}
