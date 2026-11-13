@@ -89,15 +89,20 @@ jobs:
             ffmpeg -v error -y -i out/episode.mp4 -c:v libx264 -preset veryfast -crf $crf -maxrate 6M -bufsize 12M -pix_fmt yuv420p -c:a aac -b:a 128k -movflags +faststart out/manual.mp4
             [ $(stat -c%s out/manual.mp4) -lt 48000000 ] && break
           done
-      - uses: actions/upload-artifact@v4
+      - name: Save the episode for posting (only what posting needs, kept 2 days - GitHub's free storage is 0.5 GB)
+        id: save
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
         with:
           name: episode
-          retention-days: 7
+          retention-days: 2
           path: |
-            out/
-            !out/v*.mp4
-            !out/mix.wav
-            !out/still_*.png
+            out/manual.mp4
+            out/*.json
+      - name: If saving failed, send the video and caption for posting by hand
+        if: steps.save.outcome == 'failure'
+        env: { TG_BOT_TOKEN: '${{ secrets.TG_BOT_TOKEN }}', TG_CHAT_ID: '${{ secrets.TG_CHAT_ID }}' }
+        run: python pipeline/telegram.py manual out
       - name: Send to Telegram for approval
         env: { TG_BOT_TOKEN: '${{ secrets.TG_BOT_TOKEN }}', TG_CHAT_ID: '${{ secrets.TG_CHAT_ID }}', WORKER_URL: '${{ secrets.WORKER_URL }}', PIPE_SECRET: '${{ secrets.PIPE_SECRET }}', AUTO_POST_MINUTES: '30' }
         run: |

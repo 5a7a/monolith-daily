@@ -11,7 +11,7 @@ def call(method, url, data=None, headers=None, body=None):   # errors raise Retr
     except urllib.error.HTTPError as e: raise Retry(f'{method} {url.split("?")[0]} -> {e.code}: {e.read().decode()[:600]}')
     except OSError as e: raise Retry(f'{method} {url.split("?")[0]} -> {e}')
 
-out = sys.argv[1]; meta = json.load(open(os.path.join(out, 'meta.json'))); mp4 = os.path.join(out, 'episode.mp4')
+out = sys.argv[1]; meta = json.load(open(os.path.join(out, 'meta.json'))); mp4 = next((os.path.join(out, f) for f in ('episode.mp4', 'manual.mp4') if os.path.exists(os.path.join(out, f))), os.path.join(out, 'episode.mp4'))
 def done(link, note=''):
     print(json.dumps({'permalink': link, 'note': note})); open(os.path.join(out, 'published.txt'), 'w').write(link); sys.exit(0)
 

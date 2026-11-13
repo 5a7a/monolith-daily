@@ -38,7 +38,13 @@ if '--script' in sys.argv:
     have = {a['id'] for a in cands}; cands += [a for a in S.get('_articles', []) if a['id'] not in have]
 else:
     import writer
-    S = writer.write(cands, covered=[h['title'] + (' (' + h['place'] + ')' if h.get('place') else '') for h in recent])
+    cov = [h['title'] + (' (' + h['place'] + ')' if h.get('place') else '') for h in recent]
+    try: S = writer.write(cands, covered=cov)
+    except RuntimeError as e:                     # some stories kept failing the checks: start over without them
+        failed = set(getattr(e, 'failed', []) or [])
+        log('writer gave up', f'starting over without {len(failed)} troublesome stor{"y" if len(failed) == 1 else "ies"}')
+        rest = [a for a in cands if a['id'] not in failed]
+        S = writer.write(rest if len(rest) >= 6 else cands, covered=cov)
 byid = {a['id']: a for a in cands}
 FX = json.load(open(sys.argv[sys.argv.index('--fixes') + 1])) if '--fixes' in sys.argv else {}
 S['_articles'] = [byid[s['article_id']] for s in S['stories']]   # keep the article texts with the script (re-runs, fixes)

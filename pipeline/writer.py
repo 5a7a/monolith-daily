@@ -101,7 +101,8 @@ RULES
 - topic: one of WORLD, CONFLICT, POLITICS, DIPLOMACY, BUSINESS, ECONOMY, TECH, SCIENCE, CLIMATE, HEALTH, DEFENCE, ENERGY.
 - chips: 2-3 on-screen fact labels per story, written with digits (e.g. 42 KILLED); a number in a chip must be the same number the answer says, CAPS, max 18 characters, e.g. ["31 KILLED","thirty-one"], ["TALKS RESUME","talks"].
   Second item = the word in the answer where the chip pops. Chips with numbers start with the digits.
-- place: WHERE THE EVENT HAPPENS according to the article ("CITY, COUNTRY" or "REGION, COUNTRY", caps, max 22 chars), never
+- place: WHERE THE EVENT HAPPENS according to the article ("CITY, COUNTRY", "REGION, COUNTRY", or just "COUNTRY" when the article
+  names no city - never invent a city; caps, max 22 chars), never
   the outlet's home country. A WHO decision -> "GENEVA, SWITZERLAND"; an outbreak in Congo -> "DR CONGO". lat/lon = that place.
 - question: asks about the event's own place or subject ("What about the Ebola outbreak?"), never the outlet's country.
 - rundown: "COUNTRY  ·  2-4 WORD SUMMARY" in caps, e.g. "UKRAINE  ·  STRIKE ON AID HUB".
@@ -170,6 +171,13 @@ def write(cands, tries=8, covered=()):
             cm = [{'role': 'system', 'content': CHECK}, {'role': 'user', 'content': json.dumps(pack, ensure_ascii=False)}]
             try: fc, _ = chat(cm, skip=used)            # a different AI checks the writer's work
             except RuntimeError: fc, _ = chat(cm)        # none other available: same provider, fresh conversation
+            # a place that's merely 'not mentioned' (the writer named the country or region the article implies) isn't wrong:
+            # only a clearly different place counts
+            kept = [p_ for p_ in (fc.get('problems') or []) if not (re.search(r'\bplace\b', str(p_), re.I) and
+                    re.search(r'not specif|does not specify|only mentions|may be unrelated|implied|inferred', str(p_), re.I) and
+                    not re.search(r'different (country|place|location)|wrong (country|place)', str(p_), re.I))]
+            if fc.get('problems') and not kept: fc = {'ok': True, 'problems': []}
+            elif fc.get('problems'): fc['problems'] = kept
             if fc.get('ok'):
                 last_src = byid[s['stories'][-1]['article_id']]['source']
                 s['stories'][-1]['answer'] = s['stories'][-1]['answer'].rstrip() + f' {spoken_outlet(last_src)} has the details.'
@@ -187,7 +195,9 @@ def write(cands, tries=8, covered=()):
                     (f"\nStories {swap} failed twice: replace them with different candidates that have clear, concrete facts. Do not use these article ids again: {[k for k, v in fails.items() if v >= 2]}." if swap else '') +
                     '\nReturn the full JSON again.')
         msgs.append({'role': 'assistant', 'content': json.dumps(s, ensure_ascii=False)})
-    raise RuntimeError(f'script rejected after {tries} tries: ' + (last or '; '.join(map(str, probs))))
+    e = RuntimeError(f'script rejected after {tries} tries: ' + (last or '; '.join(map(str, probs))))
+    e.failed = [real for sh, real in short.items() if fails.get(sh)]   # short id -> the feed's real id
+    raise e
 
 SPOKEN = {'nyt': 'The New York Times', 'new york times': 'The New York Times', 'bbc': 'The BBC', 'guardian': 'The Guardian',
           'wsj': 'The Wall Street Journal', 'wall street journal': 'The Wall Street Journal', 'ap ': 'The Associated Press',
@@ -297,8 +307,8 @@ def validate(s, cands, spread=True):
                 if y.get('article_id') == x.get('article_id') or (same_place and len(kx & ky) / max(1, min(len(kx), len(ky))) >= 0.3):
                     p.append(f'story {n}: same event as story {m_} - replace it with a different candidate')
             if spread and sum(1 for y in st if _country(y) == _country(x)) > 2: p.append(f'story {n}: more than 2 stories from {_country(x)} - swap one for a different region')
-            if ',' not in str(x.get('place', '')) or re.search(r'\b(CYBERSPACE|ONLINE|GLOBAL|WORLDWIDE|INTERNET)\b', str(x.get('place', '')).upper()):
-                p.append(f"story {n}: place must be a real location as 'CITY, COUNTRY' or 'REGION, COUNTRY' (for an online/company story use the company's home city)")
+            if not str(x.get('place', '')).strip() or re.search(r'\b(CYBERSPACE|ONLINE|GLOBAL|WORLDWIDE|INTERNET)\b', str(x.get('place', '')).upper()):
+                p.append(f"story {n}: place must be a real location: 'CITY, COUNTRY', 'REGION, COUNTRY' or just the COUNTRY if the article names no city")
             if n == 1:
                 vq = str(s.get('viewer_question', '')).strip()
                 if vq and (not vq.endswith('?') or len(vq) > 110 or re.search(r'\b(comment|tag|share|like|follow|below|emoji|type)\b', vq, re.I)):
